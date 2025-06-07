@@ -1,9 +1,9 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { 
   Package, 
   Plus, 
@@ -11,63 +11,89 @@ import {
   AlertTriangle,
   TrendingDown,
   TrendingUp,
-  Eye
+  Eye,
+  X
 } from 'lucide-react';
+import { getProducts, createProduct } from '@/integrations/supabase/db';
+import type { Database } from '@/integrations/supabase/types';
+
+type Product = Database['public']['Tables']['products']['Row'];
 
 const StokModule = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [formData, setFormData] = useState({
+    code: '',
+    name: '',
+    category: '',
+    current_stock: '',
+    min_stock: '',
+    max_stock: '',
+    avg_sales: '',
+    last_update: new Date().toISOString().split('T')[0],
+    status: 'good' as const
+  });
 
-  const stockData = [
-    { 
-      id: 1, 
-      code: 'MP-XK-M32-C', 
-      name: 'Baby Milk Powder Premium', 
-      category: 'Baby Care',
-      currentStock: 15, 
-      minStock: 20, 
-      maxStock: 100,
-      avgSales: 5.2,
-      lastUpdate: '2024-01-15',
-      status: 'low'
-    },
-    { 
-      id: 2, 
-      code: 'BP-XT-L45-A', 
-      name: 'Baby Bottle Set', 
-      category: 'Feeding',
-      currentStock: 45, 
-      minStock: 30, 
-      maxStock: 80,
-      avgSales: 3.8,
-      lastUpdate: '2024-01-15',
-      status: 'good'
-    },
-    { 
-      id: 3, 
-      code: 'KD-MN-S12-B', 
-      name: 'Kids Diaper Large', 
-      category: 'Baby Care',
-      currentStock: 12, 
-      minStock: 25, 
-      maxStock: 150,
-      avgSales: 8.1,
-      lastUpdate: '2024-01-14',
-      status: 'critical'
-    },
-    { 
-      id: 4, 
-      code: 'TP-QW-M67-D', 
-      name: 'Toy Puzzle Educational', 
-      category: 'Toys',
-      currentStock: 67, 
-      minStock: 20, 
-      maxStock: 100,
-      avgSales: 2.5,
-      lastUpdate: '2024-01-15',
-      status: 'overstock'
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+      const data = await getProducts();
+      setProducts(data);
+      setError(null);
+    } catch (err) {
+      setError('Gagal memuat data produk');
+      console.error('Error loading products:', err);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const newProduct = {
+        ...formData,
+        current_stock: parseInt(formData.current_stock),
+        min_stock: parseInt(formData.min_stock),
+        max_stock: parseInt(formData.max_stock),
+        avg_sales: parseFloat(formData.avg_sales)
+      };
+
+      await createProduct(newProduct);
+      await loadProducts(); // Reload data
+      setShowAddForm(false);
+      setFormData({
+        code: '',
+        name: '',
+        category: '',
+        current_stock: '',
+        min_stock: '',
+        max_stock: '',
+        avg_sales: '',
+        last_update: new Date().toISOString().split('T')[0],
+        status: 'good'
+      });
+    } catch (err) {
+      setError('Gagal menambahkan produk');
+      console.error('Error creating product:', err);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch(status) {
@@ -89,7 +115,7 @@ const StokModule = () => {
     }
   };
 
-  const filteredData = stockData.filter(item => {
+  const filteredData = products.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = selectedFilter === 'all' || item.status === selectedFilter;
@@ -97,12 +123,20 @@ const StokModule = () => {
   });
 
   const stockSummary = {
-    total: stockData.length,
-    critical: stockData.filter(item => item.status === 'critical').length,
-    low: stockData.filter(item => item.status === 'low').length,
-    good: stockData.filter(item => item.status === 'good').length,
-    overstock: stockData.filter(item => item.status === 'overstock').length,
+    total: products.length,
+    critical: products.filter(item => item.status === 'critical').length,
+    low: products.filter(item => item.status === 'low').length,
+    good: products.filter(item => item.status === 'good').length,
+    overstock: products.filter(item => item.status === 'overstock').length,
   };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="text-red-500">{error}</div>;
+  }
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -111,11 +145,127 @@ const StokModule = () => {
           <h1 className="text-3xl font-bold text-gray-900">Modul Stok</h1>
           <p className="text-gray-600 mt-1">Kelola inventori dan monitoring stok real-time</p>
         </div>
-        <Button className="smart-button">
+        <Button onClick={() => setShowAddForm(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Tambah Produk
         </Button>
       </div>
+
+      {showAddForm && (
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>Tambah Produk Baru</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="code">Kode Produk</Label>
+                  <Input
+                    id="code"
+                    name="code"
+                    value={formData.code}
+                    onChange={handleInputChange}
+                    placeholder="MP-XK-M32-C"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nama Produk</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="Baby Milk Powder Premium"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category">Kategori</Label>
+                  <Input
+                    id="category"
+                    name="category"
+                    value={formData.category}
+                    onChange={handleInputChange}
+                    placeholder="Baby Care"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="current_stock">Stok Saat Ini</Label>
+                  <Input
+                    id="current_stock"
+                    name="current_stock"
+                    type="number"
+                    value={formData.current_stock}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="min_stock">Stok Minimum</Label>
+                  <Input
+                    id="min_stock"
+                    name="min_stock"
+                    type="number"
+                    value={formData.min_stock}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_stock">Stok Maksimum</Label>
+                  <Input
+                    id="max_stock"
+                    name="max_stock"
+                    type="number"
+                    value={formData.max_stock}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="avg_sales">Rata-rata Penjualan</Label>
+                  <Input
+                    id="avg_sales"
+                    name="avg_sales"
+                    type="number"
+                    step="0.1"
+                    value={formData.avg_sales}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="last_update">Tanggal Update</Label>
+                  <Input
+                    id="last_update"
+                    name="last_update"
+                    type="date"
+                    value={formData.last_update}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
+                  Batal
+                </Button>
+                <Button type="submit">
+                  Simpan
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="smart-card">

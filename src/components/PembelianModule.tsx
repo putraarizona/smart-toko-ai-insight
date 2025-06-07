@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +14,8 @@ import {
   CreditCard,
   Eye,
   Edit,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react';
 import {
   Table,
@@ -25,117 +25,99 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { getPurchases, createPurchase, searchProducts as searchProductsDb } from '@/integrations/supabase/db';
+import type { Database } from '@/integrations/supabase/types';
+
+type Purchase = Database['public']['Tables']['purchases']['Row'] & {
+  purchase_details: Array<Database['public']['Tables']['purchase_details']['Row'] & {
+    product: Database['public']['Tables']['products']['Row']
+  }>
+};
+type Product = Database['public']['Tables']['products']['Row'];
+
+interface PurchaseDetail {
+  product_id: number;
+  product?: Product;
+  qty: number;
+  harga_per_unit: number;
+  total_harga: number;
+}
 
 const PembelianModule = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [showAddForm, setShowAddForm] = useState(false);
-
-  // Sample purchase data
-  const pembelianData = [
-    {
-      id: 1,
-      tanggalPemesanan: '2024-01-15',
-      noPesanan: 'PO-2024-001',
-      kodeBarang: 'MP-XK-M32-C',
-      namaBarang: 'Baby Milk Powder Premium',
-      marketplaceSupplier: 'PT Baby Care Indonesia',
-      akun: 'Supplier-001',
-      qty: 50,
-      totalHarga: 2500000,
-      hargaPerUnit: 50000,
-      status: 'completed'
-    },
-    {
-      id: 2,
-      tanggalPemesanan: '2024-01-14',
-      noPesanan: 'PO-2024-002',
-      kodeBarang: 'BP-XT-L45-A',
-      namaBarang: 'Baby Bottle Set',
-      marketplaceSupplier: 'Tokopedia - Babyku Store',
-      akun: 'tokopedia-babyku',
-      qty: 30,
-      totalHarga: 900000,
-      hargaPerUnit: 30000,
-      status: 'pending'
-    },
-    {
-      id: 3,
-      tanggalPemesanan: '2024-01-13',
-      noPesanan: 'PO-2024-003',
-      kodeBarang: 'KD-MN-S12-B',
-      namaBarang: 'Kids Diaper Large',
-      marketplaceSupplier: 'Shopee - Diaper World',
-      akun: 'shopee-diaper',
-      qty: 100,
-      totalHarga: 1200000,
-      hargaPerUnit: 12000,
-      status: 'shipped'
-    },
-    {
-      id: 4,
-      tanggalPemesanan: '2024-01-12',
-      noPesanan: 'PO-2024-004',
-      kodeBarang: 'TP-QW-M67-D',
-      namaBarang: 'Toy Puzzle Educational',
-      marketplaceSupplier: 'PT Mainan Edukatif',
-      akun: 'Supplier-002',
-      qty: 25,
-      totalHarga: 625000,
-      hargaPerUnit: 25000,
-      status: 'cancelled'
-    }
-  ];
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [open, setOpen] = useState(false);
 
   const [formData, setFormData] = useState({
-    tanggalPemesanan: '',
-    noPesanan: '',
-    kodeBarang: '',
-    namaBarang: '',
-    marketplaceSupplier: '',
+    tanggal_pemesanan: new Date().toISOString().split('T')[0],
+    no_pesanan: '',
+    marketplace_supplier: '',
     akun: '',
-    qty: '',
-    totalHarga: '',
-    hargaPerUnit: '',
-    status: 'pending'
+    status: 'pending' as const,
+    total_harga: 0
   });
 
-  const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'shipped': return 'bg-blue-100 text-blue-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch(status) {
-      case 'completed': return '✅';
-      case 'pending': return '⏳';
-      case 'shipped': return '🚚';
-      case 'cancelled': return '❌';
-      default: return '📦';
-    }
-  };
-
-  const filteredData = pembelianData.filter(item => {
-    const matchesSearch = item.namaBarang.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.kodeBarang.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.noPesanan.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.marketplaceSupplier.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = selectedFilter === 'all' || item.status === selectedFilter;
-    return matchesSearch && matchesFilter;
+  const [purchaseDetails, setPurchaseDetails] = useState<PurchaseDetail[]>([]);
+  const [currentDetail, setCurrentDetail] = useState<PurchaseDetail>({
+    product_id: 0,
+    qty: 0,
+    harga_per_unit: 0,
+    total_harga: 0
   });
 
-  const purchaseSummary = {
-    total: pembelianData.length,
-    completed: pembelianData.filter(item => item.status === 'completed').length,
-    pending: pembelianData.filter(item => item.status === 'pending').length,
-    shipped: pembelianData.filter(item => item.status === 'shipped').length,
-    cancelled: pembelianData.filter(item => item.status === 'cancelled').length,
-    totalValue: pembelianData.reduce((sum, item) => sum + item.totalHarga, 0)
+  useEffect(() => {
+    loadPurchases();
+  }, []);
+
+  useEffect(() => {
+    const searchProducts = async () => {
+      if (searchQuery.length < 2) {
+        setSearchResults([]);
+        return;
+      }
+
+      try {
+        const results = await searchProductsDb(searchQuery);
+        setSearchResults(results);
+      } catch (err) {
+        console.error('Error searching products:', err);
+      }
+    };
+
+    const timeoutId = setTimeout(searchProducts, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  const loadPurchases = async () => {
+    try {
+      setLoading(true);
+      const data = await getPurchases();
+      setPurchases(data);
+      setError(null);
+    } catch (err) {
+      console.error('Error loading purchases:', err);
+      setError(`Gagal memuat data pembelian: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,17 +126,91 @@ const PembelianModule = () => {
       ...prev,
       [name]: value
     }));
+  };
 
-    // Auto calculate total harga when qty or harga per unit changes
-    if (name === 'qty' || name === 'hargaPerUnit') {
-      const qty = name === 'qty' ? parseInt(value) || 0 : parseInt(formData.qty) || 0;
-      const hargaPerUnit = name === 'hargaPerUnit' ? parseInt(value) || 0 : parseInt(formData.hargaPerUnit) || 0;
-      setFormData(prev => ({
+  const handleDetailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setCurrentDetail(prev => {
+      const newDetail = {
         ...prev,
-        totalHarga: (qty * hargaPerUnit).toString()
-      }));
+        [name]: name === 'qty' || name === 'harga_per_unit' ? parseInt(value) || 0 : value
+      };
+
+      // Calculate total
+      if (name === 'qty' || name === 'harga_per_unit') {
+        newDetail.total_harga = newDetail.qty * newDetail.harga_per_unit;
+      }
+
+      return newDetail;
+    });
+  };
+
+  const handleProductSelect = (product: Product) => {
+    setCurrentDetail(prev => ({
+      ...prev,
+      product_id: product.id,
+      product: product,
+      harga_per_unit: 0,
+      total_harga: 0
+    }));
+    setOpen(false);
+  };
+
+  const addDetail = () => {
+    if (currentDetail.product_id && currentDetail.qty > 0 && currentDetail.harga_per_unit > 0) {
+      setPurchaseDetails(prev => [...prev, currentDetail]);
+      setCurrentDetail({
+        product_id: 0,
+        qty: 0,
+        harga_per_unit: 0,
+        total_harga: 0
+      });
     }
   };
+
+  const removeDetail = (index: number) => {
+    setPurchaseDetails(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const totalHarga = purchaseDetails.reduce((sum, detail) => sum + detail.total_harga, 0);
+
+      const newPurchase: Database['public']['Tables']['purchases']['Insert'] = {
+        tanggal_pemesanan: formData.tanggal_pemesanan,
+        no_pesanan: formData.no_pesanan,
+        marketplace_supplier: formData.marketplace_supplier,
+        akun: formData.akun,
+        status: formData.status,
+        total_harga: totalHarga
+      };
+
+      await createPurchase(newPurchase, purchaseDetails);
+      await loadPurchases();
+      setShowAddForm(false);
+      setFormData({
+        tanggal_pemesanan: new Date().toISOString().split('T')[0],
+        no_pesanan: '',
+        marketplace_supplier: '',
+        akun: '',
+        status: 'pending',
+        total_harga: 0
+      });
+      setPurchaseDetails([]);
+    } catch (err) {
+      setError('Gagal menambahkan pembelian');
+      console.error('Error creating purchase:', err);
+    }
+  };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="text-red-500">{error}</div>;
+  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -164,355 +220,269 @@ const PembelianModule = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Modul Pembelian</h1>
-          <p className="text-gray-600 mt-1">Kelola pembelian dan tracking order supplier</p>
-        </div>
-        <Button 
-          className="smart-button"
-          onClick={() => setShowAddForm(!showAddForm)}
-        >
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Modul Pembelian</h1>
+        <Button onClick={() => setShowAddForm(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Tambah Pembelian
         </Button>
       </div>
 
-      {/* Purchase Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        <Card className="smart-card">
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-gray-900">{purchaseSummary.total}</div>
-            <p className="text-sm text-gray-600">Total Order</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="smart-card border-green-200">
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{purchaseSummary.completed}</div>
-            <p className="text-sm text-gray-600">Selesai</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="smart-card border-yellow-200">
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">{purchaseSummary.pending}</div>
-            <p className="text-sm text-gray-600">Pending</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="smart-card border-blue-200">
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{purchaseSummary.shipped}</div>
-            <p className="text-sm text-gray-600">Dikirim</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="smart-card border-red-200">
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">{purchaseSummary.cancelled}</div>
-            <p className="text-sm text-gray-600">Dibatalkan</p>
-          </CardContent>
-        </Card>
-
-        <Card className="smart-card border-purple-200">
-          <CardContent className="p-4 text-center">
-            <div className="text-lg font-bold text-purple-600">{formatCurrency(purchaseSummary.totalValue)}</div>
-            <p className="text-sm text-gray-600">Total Nilai</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Add Purchase Form */}
       {showAddForm && (
-        <Card className="smart-card">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Plus className="w-5 h-5 text-smart-blue" />
-              <span>Tambah Pembelian Baru</span>
-            </CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle>Tambah Pembelian Baru</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="tanggalPemesanan">Tanggal Pemesanan</Label>
-                <Input
-                  id="tanggalPemesanan"
-                  name="tanggalPemesanan"
-                  type="date"
-                  value={formData.tanggalPemesanan}
-                  onChange={handleInputChange}
-                />
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tanggal_pemesanan">Tanggal Pemesanan</Label>
+                  <Input
+                    id="tanggal_pemesanan"
+                    name="tanggal_pemesanan"
+                    type="date"
+                    value={formData.tanggal_pemesanan}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="no_pesanan">No. Pesanan</Label>
+                  <Input
+                    id="no_pesanan"
+                    name="no_pesanan"
+                    placeholder="PO-2024-001"
+                    value={formData.no_pesanan}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="marketplace_supplier">Marketplace/Supplier</Label>
+                  <Input
+                    id="marketplace_supplier"
+                    name="marketplace_supplier"
+                    placeholder="PT Baby Care Indonesia"
+                    value={formData.marketplace_supplier}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="akun">Akun</Label>
+                  <Input
+                    id="akun"
+                    name="akun"
+                    placeholder="Supplier-001"
+                    value={formData.akun}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="noPesanan">No. Pesanan</Label>
-                <Input
-                  id="noPesanan"
-                  name="noPesanan"
-                  placeholder="PO-2024-001"
-                  value={formData.noPesanan}
-                  onChange={handleInputChange}
-                />
+
+              <div className="border rounded-lg p-4 space-y-4">
+                <h3 className="font-medium">Detail Barang</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nama Barang</Label>
+                    <Popover open={open} onOpenChange={setOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={open}
+                          className="w-full justify-between"
+                        >
+                          {currentDetail.product?.name || "Pilih barang..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0">
+                        <Command>
+                          <CommandInput
+                            placeholder="Cari barang..."
+                            value={searchQuery}
+                            onValueChange={setSearchQuery}
+                          />
+                          <CommandEmpty>Tidak ada hasil</CommandEmpty>
+                          <CommandGroup>
+                            {searchResults.map((product) => (
+                              <CommandItem
+                                key={product.id}
+                                value={product.name}
+                                onSelect={() => handleProductSelect(product)}
+                              >
+                                <div className="flex flex-col">
+                                  <span>{product.name}</span>
+                                  <span className="text-sm text-gray-500">{product.code}</span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="qty">Jumlah</Label>
+                    <Input
+                      id="qty"
+                      name="qty"
+                      type="number"
+                      placeholder="50"
+                      value={currentDetail.qty || ''}
+                      onChange={handleDetailChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="harga_per_unit">Harga Per Unit</Label>
+                    <Input
+                      id="harga_per_unit"
+                      name="harga_per_unit"
+                      type="number"
+                      placeholder="50000"
+                      value={currentDetail.harga_per_unit || ''}
+                      onChange={handleDetailChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Total</Label>
+                    <Input
+                      value={formatCurrency(currentDetail.total_harga)}
+                      readOnly
+                      className="bg-gray-50"
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={addDetail}
+                  disabled={!currentDetail.product_id || !currentDetail.qty || !currentDetail.harga_per_unit}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Tambah Barang
+                </Button>
+
+                {purchaseDetails.length > 0 && (
+                  <div className="mt-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nama Barang</TableHead>
+                          <TableHead>Kode</TableHead>
+                          <TableHead>Jumlah</TableHead>
+                          <TableHead>Harga/Unit</TableHead>
+                          <TableHead>Total</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {purchaseDetails.map((detail, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{detail.product?.name}</TableCell>
+                            <TableCell>{detail.product?.code}</TableCell>
+                            <TableCell>{detail.qty}</TableCell>
+                            <TableCell>{formatCurrency(detail.harga_per_unit)}</TableCell>
+                            <TableCell>{formatCurrency(detail.total_harga)}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeDetail(index)}
+                              >
+                                <Trash2 className="w-4 h-4 text-red-500" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="kodeBarang">Kode Barang</Label>
-                <Input
-                  id="kodeBarang"
-                  name="kodeBarang"
-                  placeholder="MP-XK-M32-C"
-                  value={formData.kodeBarang}
-                  onChange={handleInputChange}
-                />
+
+              <div className="flex justify-end space-x-2">
+                <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
+                  Batal
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={purchaseDetails.length === 0}
+                >
+                  Simpan
+                </Button>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="namaBarang">Nama Barang</Label>
-                <Input
-                  id="namaBarang"
-                  name="namaBarang"
-                  placeholder="Baby Milk Powder Premium"
-                  value={formData.namaBarang}
-                  onChange={handleInputChange}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="marketplaceSupplier">Marketplace/Supplier</Label>
-                <Input
-                  id="marketplaceSupplier"
-                  name="marketplaceSupplier"
-                  placeholder="PT Baby Care Indonesia"
-                  value={formData.marketplaceSupplier}
-                  onChange={handleInputChange}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="akun">Akun</Label>
-                <Input
-                  id="akun"
-                  name="akun"
-                  placeholder="Supplier-001"
-                  value={formData.akun}
-                  onChange={handleInputChange}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="qty">Quantity</Label>
-                <Input
-                  id="qty"
-                  name="qty"
-                  type="number"
-                  placeholder="50"
-                  value={formData.qty}
-                  onChange={handleInputChange}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="hargaPerUnit">Harga Per Unit</Label>
-                <Input
-                  id="hargaPerUnit"
-                  name="hargaPerUnit"
-                  type="number"
-                  placeholder="50000"
-                  value={formData.hargaPerUnit}
-                  onChange={handleInputChange}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="totalHarga">Total Harga</Label>
-                <Input
-                  id="totalHarga"
-                  name="totalHarga"
-                  type="number"
-                  placeholder="2500000"
-                  value={formData.totalHarga}
-                  onChange={handleInputChange}
-                  readOnly
-                  className="bg-gray-50"
-                />
-              </div>
-            </div>
-            
-            <div className="flex gap-2 mt-6">
-              <Button className="smart-button">
-                Simpan Pembelian
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => setShowAddForm(false)}
-              >
-                Batal
-              </Button>
-            </div>
+            </form>
           </CardContent>
         </Card>
       )}
 
-      {/* Search and Filter */}
-      <Card className="smart-card">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Cari no pesanan, nama barang, supplier..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            
-            <div className="flex gap-2">
-              <Button
-                variant={selectedFilter === 'all' ? 'default' : 'outline'}
-                onClick={() => setSelectedFilter('all')}
-                size="sm"
-              >
-                Semua
-              </Button>
-              <Button
-                variant={selectedFilter === 'pending' ? 'default' : 'outline'}
-                onClick={() => setSelectedFilter('pending')}
-                size="sm"
-              >
-                Pending
-              </Button>
-              <Button
-                variant={selectedFilter === 'completed' ? 'default' : 'outline'}
-                onClick={() => setSelectedFilter('completed')}
-                size="sm"
-              >
-                Selesai
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Purchase Table */}
-      <Card className="smart-card">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <ShoppingCart className="w-5 h-5 text-smart-blue" />
-            <span>Daftar Pembelian</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>No. Pesanan</TableHead>
-                  <TableHead>Produk</TableHead>
-                  <TableHead>Supplier</TableHead>
-                  <TableHead>Qty</TableHead>
-                  <TableHead>Harga/Unit</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm">{item.tanggalPemesanan}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{item.noPesanan}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{item.kodeBarang}</div>
-                        <div className="text-sm text-gray-600">{item.namaBarang}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{item.marketplaceSupplier}</div>
-                        <div className="text-sm text-gray-600">{item.akun}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-center font-bold">{item.qty}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">{formatCurrency(item.hargaPerUnit)}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-bold">{formatCurrency(item.totalHarga)}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(item.status)}>
-                        {getStatusIcon(item.status)} {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-1">
-                        <Button size="sm" variant="outline">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* AI Insights */}
-      <Card className="smart-card">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Package className="w-5 h-5 text-smart-purple" />
-            <span>Insights Pembelian AI</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-l-4 border-green-500">
-            <h4 className="font-medium text-gray-900 mb-2">💰 Supplier Termurah</h4>
-            <p className="text-sm text-gray-700 mb-2">
-              PT Baby Care Indonesia menawarkan harga terbaik untuk kategori Baby Care dengan rata-rata 15% lebih murah
-            </p>
-            <p className="text-xs text-green-600 font-medium">Rekomendasi: Tingkatkan order dari supplier ini</p>
-          </div>
-          
-          <div className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border-l-4 border-yellow-500">
-            <h4 className="font-medium text-gray-900 mb-2">📊 Analisis Pembelian</h4>
-            <p className="text-sm text-gray-700 mb-2">
-              Total pembelian bulan ini: {formatCurrency(purchaseSummary.totalValue)} dengan {purchaseSummary.total} transaksi
-            </p>
-            <p className="text-xs text-yellow-600 font-medium">Rata-rata nilai per transaksi: {formatCurrency(purchaseSummary.totalValue / purchaseSummary.total)}</p>
-          </div>
-
-          <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-l-4 border-blue-500">
-            <h4 className="font-medium text-gray-900 mb-2">⚡ Rekomendasi Reorder</h4>
-            <p className="text-sm text-gray-700 mb-2">
-              Berdasarkan data penjualan, saatnya reorder "Baby Milk Powder Premium" dalam 3 hari ke depan
-            </p>
-            <p className="text-xs text-blue-600 font-medium">Estimasi qty optimal: 75 unit berdasarkan trend penjualan</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="mt-6">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tanggal</TableHead>
+              <TableHead>No. Pesanan</TableHead>
+              <TableHead>Marketplace/Supplier</TableHead>
+              <TableHead>Akun</TableHead>
+              <TableHead>Total Harga</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {purchases.map((purchase) => (
+              <TableRow key={purchase.id}>
+                <TableCell>{purchase.tanggal_pemesanan}</TableCell>
+                <TableCell>{purchase.no_pesanan}</TableCell>
+                <TableCell>{purchase.marketplace_supplier}</TableCell>
+                <TableCell>{purchase.akun}</TableCell>
+                <TableCell>{formatCurrency(purchase.total_harga)}</TableCell>
+                <TableCell>
+                  <Badge variant={
+                    purchase.status === 'completed' ? 'default' :
+                    purchase.status === 'shipped' ? 'secondary' :
+                    purchase.status === 'cancelled' ? 'destructive' :
+                    'outline'
+                  }>
+                    {purchase.status}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex space-x-2">
+                    <Button variant="ghost" size="sm">
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 };

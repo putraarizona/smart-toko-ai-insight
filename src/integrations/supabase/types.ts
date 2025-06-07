@@ -9,7 +9,66 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      products: {
+        Row: {
+          id: number
+          code: string
+          name: string
+          category: string
+          current_stock: number
+          min_stock: number
+          max_stock: number
+          avg_sales: number
+          last_update: string
+          status: 'critical' | 'low' | 'good' | 'overstock'
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Tables<Database, 'products'>['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Tables<Database, 'products'>['Insert']>
+      }
+      purchases: {
+        Row: {
+          id: number
+          tanggal_pemesanan: string
+          no_pesanan: string
+          marketplace_supplier: string
+          akun: string
+          status: 'pending' | 'shipped' | 'completed' | 'cancelled'
+          total_harga: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          tanggal_pemesanan: string
+          no_pesanan: string
+          marketplace_supplier: string
+          akun: string
+          status: 'pending' | 'shipped' | 'completed' | 'cancelled'
+          total_harga: number
+        }
+        Update: Partial<Tables<Database, 'purchases'>['Insert']>
+      }
+      purchase_details: {
+        Row: {
+          id: number
+          purchase_id: number
+          product_id: number
+          qty: number
+          harga_per_unit: number
+          total_harga: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          purchase_id: number
+          product_id: number
+          qty: number
+          harga_per_unit: number
+          total_harga: number
+        }
+        Update: Partial<Tables<Database, 'purchase_details'>['Insert']>
+      }
     }
     Views: {
       [_ in never]: never

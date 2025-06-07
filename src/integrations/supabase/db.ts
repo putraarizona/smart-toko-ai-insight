@@ -1,0 +1,192 @@
+import { supabase } from './client';
+import type { Database } from './types';
+
+// Products functions
+export async function getProducts() {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function searchProducts(query: string) {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .or(`name.ilike.%${query}%,code.ilike.%${query}%`)
+    .limit(5);
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getProductById(id: number) {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function createProduct(product: Database['public']['Tables']['products']['Insert']) {
+  const { data, error } = await supabase
+    .from('products')
+    .insert(product)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateProduct(id: number, product: Database['public']['Tables']['products']['Update']) {
+  const { data, error } = await supabase
+    .from('products')
+    .update(product)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteProduct(id: number) {
+  const { error } = await supabase
+    .from('products')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+// Purchases functions
+export async function getPurchases() {
+  const { data, error } = await supabase
+    .from('purchases')
+    .select(`
+      *,
+      purchase_details (
+        *,
+        product:products (*)
+      )
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getPurchaseById(id: number) {
+  const { data, error } = await supabase
+    .from('purchases')
+    .select(`
+      *,
+      purchase_details (
+        *,
+        product:products (*)
+      )
+    `)
+    .eq('id', id)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function createPurchase(
+  purchase: Database['public']['Tables']['purchases']['Insert'],
+  details: Array<{
+    product_id: number;
+    qty: number;
+    harga_per_unit: number;
+    total_harga: number;
+  }>
+) {
+  const { data: purchaseData, error: purchaseError } = await supabase
+    .from('purchases')
+    .insert(purchase)
+    .select()
+    .single();
+
+  if (purchaseError) throw purchaseError;
+
+  const purchaseDetails = details.map(detail => ({
+    ...detail,
+    purchase_id: purchaseData.id
+  }));
+
+  const { error: detailsError } = await supabase
+    .from('purchase_details')
+    .insert(purchaseDetails);
+
+  if (detailsError) throw detailsError;
+
+  return purchaseData;
+}
+
+export async function updatePurchase(
+  id: number,
+  purchase: Database['public']['Tables']['purchases']['Update'],
+  details: Array<{
+    product_id: number;
+    qty: number;
+    harga_per_unit: number;
+    total_harga: number;
+  }>
+) {
+  const { data: purchaseData, error: purchaseError } = await supabase
+    .from('purchases')
+    .update(purchase)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (purchaseError) throw purchaseError;
+
+  // Delete existing details
+  const { error: deleteError } = await supabase
+    .from('purchase_details')
+    .delete()
+    .eq('purchase_id', id);
+
+  if (deleteError) throw deleteError;
+
+  // Insert new details
+  const purchaseDetails = details.map(detail => ({
+    ...detail,
+    purchase_id: id
+  }));
+
+  const { error: detailsError } = await supabase
+    .from('purchase_details')
+    .insert(purchaseDetails);
+
+  if (detailsError) throw detailsError;
+
+  return purchaseData;
+}
+
+export async function deletePurchase(id: number) {
+  // Delete purchase details first
+  const { error: detailsError } = await supabase
+    .from('purchase_details')
+    .delete()
+    .eq('purchase_id', id);
+
+  if (detailsError) throw detailsError;
+
+  // Then delete the purchase
+  const { error: purchaseError } = await supabase
+    .from('purchases')
+    .delete()
+    .eq('id', id);
+
+  if (purchaseError) throw purchaseError;
+} 
