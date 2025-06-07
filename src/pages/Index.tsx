@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Dashboard from '@/components/Dashboard';
@@ -81,7 +80,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex w-full">
       <Sidebar activeModule={activeModule} onModuleChange={setActiveModule} />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto ml-64">
         {renderActiveModule()}
       </main>
     </div>

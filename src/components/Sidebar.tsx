@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   LayoutDashboard, 
@@ -32,7 +31,7 @@ const Sidebar = ({ activeModule, onModuleChange }: SidebarProps) => {
   ];
 
   return (
-    <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-sidebar text-sidebar-foreground h-screen transition-all duration-300 flex flex-col`}>
+    <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-sidebar text-sidebar-foreground h-screen transition-all duration-300 flex flex-col fixed top-0 left-0`}>
       <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center justify-between">
           {!isCollapsed && (
