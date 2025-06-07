@@ -102,12 +102,7 @@ export async function getPurchaseById(id: number) {
 
 export async function createPurchase(
   purchase: Database['public']['Tables']['purchases']['Insert'],
-  details: Array<{
-    product_id: number;
-    qty: number;
-    harga_per_unit: number;
-    total_harga: number;
-  }>
+  details: Array<Omit<Database['public']['Tables']['purchase_details']['Insert'], 'purchase_id'> & { product?: any }>
 ) {
   const { data: purchaseData, error: purchaseError } = await supabase
     .from('purchases')
@@ -117,16 +112,25 @@ export async function createPurchase(
 
   if (purchaseError) throw purchaseError;
 
-  const purchaseDetails = details.map(detail => ({
-    ...detail,
-    purchase_id: purchaseData.id
-  }));
+  // Hapus field product sebelum insert
+  const purchaseDetails = details.map(detail => {
+    const { product, ...rest } = detail;
+    return {
+      ...rest,
+      purchase_id: purchaseData.id
+    };
+  });
+
+  console.log('purchaseDetails yang akan di-insert:', purchaseDetails);
 
   const { error: detailsError } = await supabase
     .from('purchase_details')
     .insert(purchaseDetails);
 
-  if (detailsError) throw detailsError;
+  if (detailsError) {
+    console.error('Error insert purchase_details:', detailsError);
+    throw detailsError;
+  }
 
   return purchaseData;
 }

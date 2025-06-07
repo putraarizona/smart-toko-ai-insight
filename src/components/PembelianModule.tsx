@@ -37,7 +37,25 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { getPurchases, createPurchase, searchProducts as searchProductsDb } from '@/integrations/supabase/db';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { getPurchases, createPurchase, updatePurchase, deletePurchase, searchProducts as searchProductsDb } from '@/integrations/supabase/db';
+import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
 type Purchase = Database['public']['Tables']['purchases']['Row'] & {
@@ -45,15 +63,18 @@ type Purchase = Database['public']['Tables']['purchases']['Row'] & {
     product: Database['public']['Tables']['products']['Row']
   }>
 };
+
 type Product = Database['public']['Tables']['products']['Row'];
 
-interface PurchaseDetail {
-  product_id: number;
+type PurchaseDetail = Database['public']['Tables']['purchase_details']['Insert'] & {
   product?: Product;
-  qty: number;
-  harga_per_unit: number;
-  total_harga: number;
-}
+};
+
+type PurchaseFormData = Database['public']['Tables']['purchases']['Insert'];
+
+type LocalPurchaseDetail = Omit<Database['public']['Tables']['purchase_details']['Insert'], 'purchase_id'> & {
+  product?: Product;
+};
 
 const PembelianModule = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -65,18 +86,24 @@ const PembelianModule = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [open, setOpen] = useState(false);
+  const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<PurchaseFormData>({
     tanggal_pemesanan: new Date().toISOString().split('T')[0],
     no_pesanan: '',
     marketplace_supplier: '',
     akun: '',
-    status: 'pending' as const,
+    status: 'pending',
     total_harga: 0
   });
 
-  const [purchaseDetails, setPurchaseDetails] = useState<PurchaseDetail[]>([]);
-  const [currentDetail, setCurrentDetail] = useState<PurchaseDetail>({
+  const [purchaseDetails, setPurchaseDetails] = useState<LocalPurchaseDetail[]>([]);
+  const [currentDetail, setCurrentDetail] = useState<LocalPurchaseDetail>({
     product_id: 0,
     qty: 0,
     harga_per_unit: 0,
@@ -120,7 +147,7 @@ const PembelianModule = () => {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -174,10 +201,13 @@ const PembelianModule = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (purchaseDetails.length === 0) {
+      alert('Tambahkan minimal 1 barang!');
+      return;
+    }
     try {
       const totalHarga = purchaseDetails.reduce((sum, detail) => sum + detail.total_harga, 0);
-
-      const newPurchase: Database['public']['Tables']['purchases']['Insert'] = {
+      const newPurchase: PurchaseFormData = {
         tanggal_pemesanan: formData.tanggal_pemesanan,
         no_pesanan: formData.no_pesanan,
         marketplace_supplier: formData.marketplace_supplier,
@@ -185,7 +215,6 @@ const PembelianModule = () => {
         status: formData.status,
         total_harga: totalHarga
       };
-
       await createPurchase(newPurchase, purchaseDetails);
       await loadPurchases();
       setShowAddForm(false);
@@ -198,9 +227,133 @@ const PembelianModule = () => {
         total_harga: 0
       });
       setPurchaseDetails([]);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2000);
     } catch (err) {
-      setError('Gagal menambahkan pembelian');
       console.error('Error creating purchase:', err);
+      setError('Gagal menambahkan pembelian');
+    }
+  };
+
+  const handleView = async (purchase: Purchase) => {
+    try {
+      // Load purchase details with product information
+      const { data, error } = await supabase
+        .from('purchases')
+        .select(`
+          *,
+          purchase_details (
+            *,
+            product:products (*)
+          )
+        `)
+        .eq('id', purchase.id)
+        .single();
+
+      if (error) throw error;
+      setSelectedPurchase(data);
+      setIsViewDialogOpen(true);
+    } catch (err) {
+      console.error('Error loading purchase details:', err);
+      setError('Gagal memuat detail pembelian');
+    }
+  };
+
+  const handleEdit = async (purchase: Purchase) => {
+    try {
+      // Load purchase details with product information
+      const { data, error } = await supabase
+        .from('purchases')
+        .select(`
+          *,
+          purchase_details (
+            *,
+            product:products (*)
+          )
+        `)
+        .eq('id', purchase.id)
+        .single();
+
+      if (error) throw error;
+
+      setSelectedPurchase(data);
+      setFormData({
+        tanggal_pemesanan: data.tanggal_pemesanan,
+        no_pesanan: data.no_pesanan,
+        marketplace_supplier: data.marketplace_supplier,
+        akun: data.akun,
+        status: data.status,
+        total_harga: data.total_harga
+      });
+
+      // Set purchase details with product information
+      setPurchaseDetails(data.purchase_details.map(detail => ({
+        product_id: detail.product_id,
+        product: detail.product,
+        qty: detail.qty,
+        harga_per_unit: detail.harga_per_unit,
+        total_harga: detail.total_harga
+      })));
+
+      setIsEditDialogOpen(true);
+    } catch (err) {
+      console.error('Error loading purchase details:', err);
+      setError('Gagal memuat detail pembelian');
+    }
+  };
+
+  const handleDelete = async (purchase: Purchase) => {
+    setSelectedPurchase(purchase);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedPurchase) return;
+    
+    try {
+      setIsDeleting(true);
+      await deletePurchase(selectedPurchase.id);
+      await loadPurchases();
+      setIsDeleteDialogOpen(false);
+    } catch (err) {
+      console.error('Error deleting purchase:', err);
+      setError('Gagal menghapus pembelian');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPurchase) return;
+
+    try {
+      const totalHarga = purchaseDetails.reduce((sum, detail) => sum + detail.total_harga, 0);
+
+      const updatedPurchase = {
+        tanggal_pemesanan: formData.tanggal_pemesanan,
+        no_pesanan: formData.no_pesanan,
+        marketplace_supplier: formData.marketplace_supplier,
+        akun: formData.akun,
+        status: formData.status,
+        total_harga: totalHarga
+      } as const;
+
+      await updatePurchase(selectedPurchase.id, updatedPurchase, purchaseDetails);
+      await loadPurchases();
+      setIsEditDialogOpen(false);
+      setFormData({
+        tanggal_pemesanan: new Date().toISOString().split('T')[0],
+        no_pesanan: '',
+        marketplace_supplier: '',
+        akun: '',
+        status: 'pending',
+        total_harga: 0
+      });
+      setPurchaseDetails([]);
+    } catch (err) {
+      console.error('Error updating purchase:', err);
+      setError('Gagal memperbarui pembelian');
     }
   };
 
@@ -221,6 +374,11 @@ const PembelianModule = () => {
 
   return (
     <div className="p-6 space-y-6">
+      {showSuccess && (
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow z-50">
+          Data pembelian berhasil disimpan!
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Modul Pembelian</h1>
         <Button onClick={() => setShowAddForm(true)}>
@@ -341,10 +499,8 @@ const PembelianModule = () => {
                       id="qty"
                       name="qty"
                       type="number"
-                      placeholder="50"
                       value={currentDetail.qty || ''}
                       onChange={handleDetailChange}
-                      required
                     />
                   </div>
 
@@ -354,10 +510,8 @@ const PembelianModule = () => {
                       id="harga_per_unit"
                       name="harga_per_unit"
                       type="number"
-                      placeholder="50000"
                       value={currentDetail.harga_per_unit || ''}
                       onChange={handleDetailChange}
-                      required
                     />
                   </div>
 
@@ -371,14 +525,16 @@ const PembelianModule = () => {
                   </div>
                 </div>
 
-                <Button
-                  type="button"
-                  onClick={addDetail}
-                  disabled={!currentDetail.product_id || !currentDetail.qty || !currentDetail.harga_per_unit}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Tambah Barang
-                </Button>
+                <div className="flex items-end">
+                  <Button
+                    type="button"
+                    onClick={addDetail}
+                    disabled={!currentDetail.product_id || !currentDetail.qty || !currentDetail.harga_per_unit}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Tambah Barang
+                  </Button>
+                </div>
 
                 {purchaseDetails.length > 0 && (
                   <div className="mt-4">
@@ -422,10 +578,7 @@ const PembelianModule = () => {
                 <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
                   Batal
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={purchaseDetails.length === 0}
-                >
+                <Button type="submit" disabled={purchaseDetails.length === 0}>
                   Simpan
                 </Button>
               </div>
@@ -434,20 +587,322 @@ const PembelianModule = () => {
         </Card>
       )}
 
+      {/* View Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Detail Pembelian</DialogTitle>
+          </DialogHeader>
+          {selectedPurchase && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Tanggal Pemesanan</Label>
+                  <p>{selectedPurchase.tanggal_pemesanan}</p>
+                </div>
+                <div>
+                  <Label>No. Pesanan</Label>
+                  <p>{selectedPurchase.no_pesanan}</p>
+                </div>
+                <div>
+                  <Label>Marketplace/Supplier</Label>
+                  <p>{selectedPurchase.marketplace_supplier}</p>
+                </div>
+                <div>
+                  <Label>Akun</Label>
+                  <p>{selectedPurchase.akun}</p>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Badge variant={
+                    selectedPurchase.status === 'completed' ? 'default' :
+                    selectedPurchase.status === 'shipped' ? 'secondary' :
+                    selectedPurchase.status === 'cancelled' ? 'destructive' :
+                    'outline'
+                  }>
+                    {selectedPurchase.status}
+                  </Badge>
+                </div>
+                <div>
+                  <Label>Total Harga</Label>
+                  <p>{formatCurrency(selectedPurchase.total_harga)}</p>
+                </div>
+              </div>
+              
+              <div className="mt-4">
+                <h3 className="font-medium mb-2">Detail Barang</h3>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nama Barang</TableHead>
+                      <TableHead>Kode</TableHead>
+                      <TableHead>Jumlah</TableHead>
+                      <TableHead>Harga/Unit</TableHead>
+                      <TableHead>Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedPurchase.purchase_details.map((detail, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{detail.product?.name}</TableCell>
+                        <TableCell>{detail.product?.code}</TableCell>
+                        <TableCell>{detail.qty}</TableCell>
+                        <TableCell>{formatCurrency(detail.harga_per_unit)}</TableCell>
+                        <TableCell>{formatCurrency(detail.total_harga)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Edit Pembelian</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="tanggal_pemesanan">Tanggal Pemesanan</Label>
+                <Input
+                  id="tanggal_pemesanan"
+                  name="tanggal_pemesanan"
+                  type="date"
+                  value={formData.tanggal_pemesanan}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="no_pesanan">No. Pesanan</Label>
+                <Input
+                  id="no_pesanan"
+                  name="no_pesanan"
+                  value={formData.no_pesanan}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="marketplace_supplier">Marketplace/Supplier</Label>
+                <Input
+                  id="marketplace_supplier"
+                  name="marketplace_supplier"
+                  value={formData.marketplace_supplier}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="akun">Akun</Label>
+                <Input
+                  id="akun"
+                  name="akun"
+                  value={formData.akun}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <select
+                  id="status"
+                  name="status"
+                  value={formData.status}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border rounded-md"
+                  required
+                >
+                  <option value="pending">Pending</option>
+                  <option value="shipped">Shipped</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-medium">Detail Barang</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label>Nama Barang</Label>
+                  <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={open}
+                        className="w-full justify-between"
+                      >
+                        {currentDetail.product?.name || "Pilih barang..."}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[400px] p-0">
+                      <Command>
+                        <CommandInput
+                          placeholder="Cari barang..."
+                          value={searchQuery}
+                          onValueChange={setSearchQuery}
+                        />
+                        <CommandEmpty>Tidak ada hasil</CommandEmpty>
+                        <CommandGroup>
+                          {searchResults.map((product) => (
+                            <CommandItem
+                              key={product.id}
+                              value={product.name}
+                              onSelect={() => handleProductSelect(product)}
+                            >
+                              <div className="flex flex-col">
+                                <span>{product.name}</span>
+                                <span className="text-sm text-gray-500">{product.code}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="qty">Jumlah</Label>
+                  <Input
+                    id="qty"
+                    name="qty"
+                    type="number"
+                    value={currentDetail.qty || ''}
+                    onChange={handleDetailChange}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="harga_per_unit">Harga Per Unit</Label>
+                  <Input
+                    id="harga_per_unit"
+                    name="harga_per_unit"
+                    type="number"
+                    value={currentDetail.harga_per_unit || ''}
+                    onChange={handleDetailChange}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Total</Label>
+                  <Input
+                    value={formatCurrency(currentDetail.total_harga)}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+              </div>
+              
+              <Button 
+                type="button"
+                onClick={addDetail}
+                disabled={!currentDetail.product_id || !currentDetail.qty || !currentDetail.harga_per_unit}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Tambah Barang
+              </Button>
+
+              {purchaseDetails.length > 0 && (
+                <div className="mt-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nama Barang</TableHead>
+                        <TableHead>Kode</TableHead>
+                        <TableHead>Jumlah</TableHead>
+                        <TableHead>Harga/Unit</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {purchaseDetails.map((detail, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{detail.product?.name}</TableCell>
+                          <TableCell>{detail.product?.code}</TableCell>
+                          <TableCell>{detail.qty}</TableCell>
+                          <TableCell>{formatCurrency(detail.harga_per_unit)}</TableCell>
+                          <TableCell>{formatCurrency(detail.total_harga)}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeDetail(index)}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+            
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Batal
+              </Button>
+              <Button type="submit" disabled={purchaseDetails.length === 0}>
+                Simpan Perubahan
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apakah Anda yakin?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tindakan ini tidak dapat dibatalkan. Ini akan menghapus pembelian "{selectedPurchase?.no_pesanan}" secara permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {isDeleting ? 'Menghapus...' : 'Hapus'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="mt-6">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Tanggal</TableHead>
-              <TableHead>No. Pesanan</TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tanggal</TableHead>
+                  <TableHead>No. Pesanan</TableHead>
               <TableHead>Marketplace/Supplier</TableHead>
               <TableHead>Akun</TableHead>
               <TableHead>Total Harga</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
             {purchases.map((purchase) => (
               <TableRow key={purchase.id}>
                 <TableCell>{purchase.tanggal_pemesanan}</TableCell>
@@ -455,7 +910,7 @@ const PembelianModule = () => {
                 <TableCell>{purchase.marketplace_supplier}</TableCell>
                 <TableCell>{purchase.akun}</TableCell>
                 <TableCell>{formatCurrency(purchase.total_harga)}</TableCell>
-                <TableCell>
+                    <TableCell>
                   <Badge variant={
                     purchase.status === 'completed' ? 'default' :
                     purchase.status === 'shipped' ? 'secondary' :
@@ -463,26 +918,26 @@ const PembelianModule = () => {
                     'outline'
                   }>
                     {purchase.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
                   <div className="flex space-x-2">
-                    <Button variant="ghost" size="sm">
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => handleView(purchase)}>
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(purchase)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(purchase)}>
                       <Trash2 className="w-4 h-4 text-red-500" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
     </div>
   );
 };

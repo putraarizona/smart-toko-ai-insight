@@ -24,8 +24,28 @@ export type Database = {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Tables<Database, 'products'>['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Tables<Database, 'products'>['Insert']>
+        Insert: {
+          code: string
+          name: string
+          category: string
+          current_stock: number
+          min_stock: number
+          max_stock: number
+          avg_sales: number
+          last_update: string
+          status: 'critical' | 'low' | 'good' | 'overstock'
+        }
+        Update: {
+          code?: string
+          name?: string
+          category?: string
+          current_stock?: number
+          min_stock?: number
+          max_stock?: number
+          avg_sales?: number
+          last_update?: string
+          status?: 'critical' | 'low' | 'good' | 'overstock'
+        }
       }
       purchases: {
         Row: {
@@ -47,7 +67,14 @@ export type Database = {
           status: 'pending' | 'shipped' | 'completed' | 'cancelled'
           total_harga: number
         }
-        Update: Partial<Tables<Database, 'purchases'>['Insert']>
+        Update: {
+          tanggal_pemesanan?: string
+          no_pesanan?: string
+          marketplace_supplier?: string
+          akun?: string
+          status?: 'pending' | 'shipped' | 'completed' | 'cancelled'
+          total_harga?: number
+        }
       }
       purchase_details: {
         Row: {
@@ -67,7 +94,13 @@ export type Database = {
           harga_per_unit: number
           total_harga: number
         }
-        Update: Partial<Tables<Database, 'purchase_details'>['Insert']>
+        Update: {
+          purchase_id?: number
+          product_id?: number
+          qty?: number
+          harga_per_unit?: number
+          total_harga?: number
+        }
       }
     }
     Views: {
