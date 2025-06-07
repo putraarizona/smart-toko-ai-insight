@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Dashboard from '@/components/Dashboard';
 import StokModule from '@/components/StokModule';
+import PembelianModule from '@/components/PembelianModule';
 import SmartAssistant from '@/components/SmartAssistant';
 
 const Index = () => {
@@ -14,6 +15,8 @@ const Index = () => {
         return <Dashboard />;
       case 'stok':
         return <StokModule />;
+      case 'pembelian':
+        return <PembelianModule />;
       case 'penjualan':
         return (
           <div className="p-6 animate-fade-in">

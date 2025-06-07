@@ -4,6 +4,7 @@ import {
   LayoutDashboard, 
   Package, 
   ShoppingCart, 
+  ShoppingBag,
   TrendingUp, 
   Brain, 
   Settings, 
@@ -23,6 +24,7 @@ const Sidebar = ({ activeModule, onModuleChange }: SidebarProps) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'stok', label: 'Modul Stok', icon: Package },
+    { id: 'pembelian', label: 'Modul Pembelian', icon: ShoppingBag },
     { id: 'penjualan', label: 'Modul Penjualan', icon: ShoppingCart },
     { id: 'laporan', label: 'Laporan', icon: TrendingUp },
     { id: 'assistant', label: 'Smart Assistant', icon: Brain },
