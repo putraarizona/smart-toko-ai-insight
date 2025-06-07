@@ -8,7 +8,6 @@ import {
   Package, 
   Plus, 
   Search, 
-  Filter,
   AlertTriangle,
   TrendingDown,
   TrendingUp,
@@ -67,7 +66,7 @@ const StokModule = () => {
       avgSales: 2.5,
       lastUpdate: '2024-01-15',
       status: 'overstock'
-    },
+    }
   ];
 
   const getStatusColor = (status: string) => {
@@ -118,7 +117,6 @@ const StokModule = () => {
         </Button>
       </div>
 
-      {/* Stock Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="smart-card">
           <CardContent className="p-4 text-center">
@@ -156,7 +154,6 @@ const StokModule = () => {
         </Card>
       </div>
 
-      {/* Search and Filter */}
       <Card className="smart-card">
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row gap-4">
@@ -197,7 +194,6 @@ const StokModule = () => {
         </CardContent>
       </Card>
 
-      {/* Stock Table */}
       <Card className="smart-card">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -255,7 +251,6 @@ const StokModule = () => {
         </CardContent>
       </Card>
 
-      {/* AI Recommendations */}
       <Card className="smart-card">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -275,7 +270,7 @@ const StokModule = () => {
           <div className="p-4 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg border-l-4 border-orange-500">
             <h4 className="font-medium text-gray-900 mb-2">⚠️ Monitoring Required</h4>
             <p className="text-sm text-gray-700 mb-2">
-              "MP-XK-M32-C" (Baby Milk Powder Premium) - Stok di bawah minimum (15 < 20)
+              "MP-XK-M32-C" (Baby Milk Powder Premium) - Stok di bawah minimum (15 &lt; 20)
             </p>
             <p className="text-xs text-orange-600 font-medium">Prediksi habis dalam 3 hari</p>
           </div>
