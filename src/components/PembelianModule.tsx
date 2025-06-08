@@ -365,6 +365,21 @@ const PembelianModule = () => {
     }).format(amount);
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-[#A9DFBF] text-green-900'; // Hijau tua lembut
+      case 'shipped':
+        return 'bg-[#AED6F1] text-blue-900'; // Biru netral
+      case 'pending':
+        return 'bg-[#F9E79F] text-yellow-900'; // Oranye terang
+      case 'cancelled':
+        return 'bg-[#F5B7B1] text-red-900'; // Merah pastel
+      default:
+        return 'bg-gray-200 text-gray-800';
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {showSuccess && (
@@ -628,14 +643,9 @@ const PembelianModule = () => {
                 </div>
                 <div>
                   <Label>Status</Label>
-                  <Badge variant={
-                    selectedPurchase.status === 'completed' ? 'default' :
-                    selectedPurchase.status === 'shipped' ? 'secondary' :
-                    selectedPurchase.status === 'cancelled' ? 'destructive' :
-                    'outline'
-                  }>
-                    {selectedPurchase.status}
-                  </Badge>
+                  <p><Badge className={getStatusColor(selectedPurchase.status)}>
+                    {selectedPurchase.status.charAt(0).toUpperCase() + selectedPurchase.status.slice(1)}
+                  </Badge></p>
                 </div>
                 <div>
                   <Label>Total Harga</Label>
@@ -717,15 +727,10 @@ const PembelianModule = () => {
                 <TableCell>{purchase.akun}</TableCell>
                 <TableCell>{formatCurrency(purchase.total_harga)}</TableCell>
                     <TableCell>
-                  <Badge variant={
-                    purchase.status === 'completed' ? 'default' :
-                    purchase.status === 'shipped' ? 'secondary' :
-                    purchase.status === 'cancelled' ? 'destructive' :
-                    'outline'
-                  }>
-                    {purchase.status}
-                      </Badge>
-                    </TableCell>
+                  <Badge className={getStatusColor(purchase.status)}>
+                    {purchase.status.charAt(0).toUpperCase() + purchase.status.slice(1)}
+                  </Badge>
+                </TableCell>
                     <TableCell>
                   <div className="flex space-x-2">
                     <Button variant="ghost" size="sm" onClick={() => handleView(purchase)}>
