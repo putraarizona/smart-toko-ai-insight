@@ -399,25 +399,25 @@ const PembelianModule = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-2">
                   <Label htmlFor="tanggal_pemesanan">Tanggal Pemesanan</Label>
-                  <Input
+                <Input
                     id="tanggal_pemesanan"
                     name="tanggal_pemesanan"
-                    type="date"
+                  type="date"
                     value={formData.tanggal_pemesanan}
-                    onChange={handleInputChange}
+                  onChange={handleInputChange}
                     required
-                  />
-                </div>
-                
-                <div className="space-y-2">
+                />
+              </div>
+              
+              <div className="space-y-2">
                   <Label htmlFor="no_pesanan">No. Pesanan</Label>
-                  <Input
+                <Input
                     id="no_pesanan"
                     name="no_pesanan"
-                    placeholder="PO-2024-001"
+                  placeholder="PO-2024-001"
                     value={formData.no_pesanan}
                     onChange={handleInputChange}
                     required
@@ -443,7 +443,7 @@ const PembelianModule = () => {
                     name="akun"
                     placeholder="Supplier-001"
                     value={formData.akun}
-                    onChange={handleInputChange}
+                  onChange={handleInputChange}
                     required
                   />
                 </div>
@@ -452,16 +452,16 @@ const PembelianModule = () => {
               <div className="border rounded-lg p-4 space-y-4">
                 <h3 className="font-medium">Detail Barang</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="space-y-2 col-span-2">
                     <Label>Nama Barang</Label>
                     <Popover open={open} onOpenChange={setOpen}>
-                      <PopoverTrigger asChild>
+                      <PopoverTrigger asChild>  
                         <Button
                           variant="outline"
                           role="combobox"
                           aria-expanded={open}
-                          className="w-full justify-between"
+                          className="w-full justify-between truncate"
                         >
                           {currentDetail.product?.name || "Pilih barang..."}
                         </Button>
@@ -515,7 +515,7 @@ const PembelianModule = () => {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2 lg:col-span-1">
                     <Label>Total</Label>
                     <Input
                       value={formatCurrency(currentDetail.total_harga)}
@@ -595,7 +595,7 @@ const PembelianModule = () => {
           </DialogHeader>
           {selectedPurchase && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 ">
                 <div>
                   <Label>Tanggal Pemesanan</Label>
                   <p>{selectedPurchase.tanggal_pemesanan}</p>
@@ -634,11 +634,11 @@ const PembelianModule = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Nama Barang</TableHead>
-                      <TableHead>Kode</TableHead>
-                      <TableHead>Jumlah</TableHead>
-                      <TableHead>Harga/Unit</TableHead>
-                      <TableHead>Total</TableHead>
+                      <TableHead >Nama Barang</TableHead>
+                      <TableHead className="text-center">Kode</TableHead>
+                      <TableHead className="text-center">Jumlah</TableHead>
+                      <TableHead className="text-center">Harga/Unit</TableHead>
+                      <TableHead className="text-center">Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -646,9 +646,9 @@ const PembelianModule = () => {
                       <TableRow key={index}>
                         <TableCell>{detail.product?.name}</TableCell>
                         <TableCell>{detail.product?.code}</TableCell>
-                        <TableCell>{detail.qty}</TableCell>
-                        <TableCell>{formatCurrency(detail.harga_per_unit)}</TableCell>
-                        <TableCell>{formatCurrency(detail.total_harga)}</TableCell>
+                        <TableCell className="text-center">{detail.qty}</TableCell>
+                        <TableCell className="text-center">{formatCurrency(detail.harga_per_unit)}</TableCell>
+                        <TableCell className="text-center">{formatCurrency(detail.total_harga)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -776,38 +776,38 @@ const PembelianModule = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="qty">Jumlah</Label>
-                  <Input
-                    id="qty"
-                    name="qty"
-                    type="number"
+                <Input
+                  id="qty"
+                  name="qty"
+                  type="number"
                     value={currentDetail.qty || ''}
                     onChange={handleDetailChange}
                     required
-                  />
-                </div>
-                
-                <div className="space-y-2">
+                />
+              </div>
+              
+              <div className="space-y-2">
                   <Label htmlFor="harga_per_unit">Harga Per Unit</Label>
-                  <Input
+                <Input
                     id="harga_per_unit"
                     name="harga_per_unit"
-                    type="number"
+                  type="number"
                     value={currentDetail.harga_per_unit || ''}
                     onChange={handleDetailChange}
                     required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Total</Label>
-                  <Input
-                    value={formatCurrency(currentDetail.total_harga)}
-                    readOnly
-                    className="bg-gray-50"
-                  />
-                </div>
+                />
               </div>
               
+              <div className="space-y-2">
+                  <Label>Total</Label>
+                <Input
+                    value={formatCurrency(currentDetail.total_harga)}
+                  readOnly
+                  className="bg-gray-50"
+                />
+              </div>
+            </div>
+            
               <Button 
                 type="button"
                 onClick={addDetail}
@@ -851,7 +851,7 @@ const PembelianModule = () => {
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+            </div>
               )}
             </div>
             
