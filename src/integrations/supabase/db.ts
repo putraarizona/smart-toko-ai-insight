@@ -138,12 +138,7 @@ export async function createPurchase(
 export async function updatePurchase(
   id: number,
   purchase: Database['public']['Tables']['purchases']['Update'],
-  details: Array<{
-    product_id: number;
-    qty: number;
-    harga_per_unit: number;
-    total_harga: number;
-  }>
+  details: Array<Omit<Database['public']['Tables']['purchase_details']['Insert'], 'purchase_id'> & { product?: any }>
 ) {
   const { data: purchaseData, error: purchaseError } = await supabase
     .from('purchases')
@@ -162,17 +157,23 @@ export async function updatePurchase(
 
   if (deleteError) throw deleteError;
 
-  // Insert new details
-  const purchaseDetails = details.map(detail => ({
-    ...detail,
-    purchase_id: id
-  }));
+  // Insert new details, hapus field product
+  const purchaseDetails = details.map(detail => {
+    const { product, ...rest } = detail;
+    return {
+      ...rest,
+      purchase_id: id
+    };
+  });
 
   const { error: detailsError } = await supabase
     .from('purchase_details')
     .insert(purchaseDetails);
 
-  if (detailsError) throw detailsError;
+  if (detailsError) {
+    console.error('Error insert purchase_details (update):', detailsError);
+    throw detailsError;
+  }
 
   return purchaseData;
 }

@@ -88,10 +88,11 @@ const PembelianModule = () => {
   const [open, setOpen] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editPurchaseId, setEditPurchaseId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState<PurchaseFormData>({
     tanggal_pemesanan: new Date().toISOString().split('T')[0],
@@ -199,7 +200,60 @@ const PembelianModule = () => {
     setPurchaseDetails(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleEdit = async (purchase: Purchase) => {
+    try {
+      const { data, error } = await supabase
+        .from('purchases')
+        .select(`
+          *,
+          purchase_details (
+            *,
+            product:products (*)
+          )
+        `)
+        .eq('id', purchase.id)
+        .single();
+      if (error) throw error;
+      setFormData({
+        tanggal_pemesanan: data.tanggal_pemesanan,
+        no_pesanan: data.no_pesanan,
+        marketplace_supplier: data.marketplace_supplier,
+        akun: data.akun,
+        status: data.status,
+        total_harga: data.total_harga
+      });
+      setPurchaseDetails(data.purchase_details.map(detail => ({
+        product_id: detail.product_id,
+        product: detail.product,
+        qty: detail.qty,
+        harga_per_unit: detail.harga_per_unit,
+        total_harga: detail.total_harga
+      })));
+      setEditMode(true);
+      setEditPurchaseId(data.id);
+      setShowAddForm(true);
+    } catch (err) {
+      console.error('Error loading purchase details:', err);
+      setError('Gagal memuat detail pembelian');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditMode(false);
+    setEditPurchaseId(null);
+    setFormData({
+      tanggal_pemesanan: new Date().toISOString().split('T')[0],
+      no_pesanan: '',
+      marketplace_supplier: '',
+      akun: '',
+      status: 'pending',
+      total_harga: 0
+    });
+    setPurchaseDetails([]);
+    setShowAddForm(false);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (purchaseDetails.length === 0) {
       alert('Tambahkan minimal 1 barang!');
@@ -207,15 +261,31 @@ const PembelianModule = () => {
     }
     try {
       const totalHarga = purchaseDetails.reduce((sum, detail) => sum + detail.total_harga, 0);
-      const newPurchase: PurchaseFormData = {
-        tanggal_pemesanan: formData.tanggal_pemesanan,
-        no_pesanan: formData.no_pesanan,
-        marketplace_supplier: formData.marketplace_supplier,
-        akun: formData.akun,
-        status: formData.status,
-        total_harga: totalHarga
-      };
-      await createPurchase(newPurchase, purchaseDetails);
+      if (editMode && editPurchaseId) {
+        // Update
+        const updatedPurchase = {
+          tanggal_pemesanan: formData.tanggal_pemesanan,
+          no_pesanan: formData.no_pesanan,
+          marketplace_supplier: formData.marketplace_supplier,
+          akun: formData.akun,
+          status: formData.status,
+          total_harga: totalHarga
+        };
+        await updatePurchase(editPurchaseId, updatedPurchase, purchaseDetails);
+        setEditMode(false);
+        setEditPurchaseId(null);
+      } else {
+        // Create
+        const newPurchase = {
+          tanggal_pemesanan: formData.tanggal_pemesanan,
+          no_pesanan: formData.no_pesanan,
+          marketplace_supplier: formData.marketplace_supplier,
+          akun: formData.akun,
+          status: formData.status,
+          total_harga: totalHarga
+        };
+        await createPurchase(newPurchase, purchaseDetails);
+      }
       await loadPurchases();
       setShowAddForm(false);
       setFormData({
@@ -230,8 +300,8 @@ const PembelianModule = () => {
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
     } catch (err) {
-      console.error('Error creating purchase:', err);
-      setError('Gagal menambahkan pembelian');
+      console.error('Error saving purchase:', err);
+      setError(editMode ? 'Gagal memperbarui pembelian' : 'Gagal menambahkan pembelian');
     }
   };
 
@@ -259,49 +329,6 @@ const PembelianModule = () => {
     }
   };
 
-  const handleEdit = async (purchase: Purchase) => {
-    try {
-      // Load purchase details with product information
-      const { data, error } = await supabase
-        .from('purchases')
-        .select(`
-          *,
-          purchase_details (
-            *,
-            product:products (*)
-          )
-        `)
-        .eq('id', purchase.id)
-        .single();
-
-      if (error) throw error;
-
-      setSelectedPurchase(data);
-      setFormData({
-        tanggal_pemesanan: data.tanggal_pemesanan,
-        no_pesanan: data.no_pesanan,
-        marketplace_supplier: data.marketplace_supplier,
-        akun: data.akun,
-        status: data.status,
-        total_harga: data.total_harga
-      });
-
-      // Set purchase details with product information
-      setPurchaseDetails(data.purchase_details.map(detail => ({
-        product_id: detail.product_id,
-        product: detail.product,
-        qty: detail.qty,
-        harga_per_unit: detail.harga_per_unit,
-        total_harga: detail.total_harga
-      })));
-
-      setIsEditDialogOpen(true);
-    } catch (err) {
-      console.error('Error loading purchase details:', err);
-      setError('Gagal memuat detail pembelian');
-    }
-  };
-
   const handleDelete = async (purchase: Purchase) => {
     setSelectedPurchase(purchase);
     setIsDeleteDialogOpen(true);
@@ -320,40 +347,6 @@ const PembelianModule = () => {
       setError('Gagal menghapus pembelian');
     } finally {
       setIsDeleting(false);
-    }
-  };
-
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPurchase) return;
-
-    try {
-      const totalHarga = purchaseDetails.reduce((sum, detail) => sum + detail.total_harga, 0);
-
-      const updatedPurchase = {
-        tanggal_pemesanan: formData.tanggal_pemesanan,
-        no_pesanan: formData.no_pesanan,
-        marketplace_supplier: formData.marketplace_supplier,
-        akun: formData.akun,
-        status: formData.status,
-        total_harga: totalHarga
-      } as const;
-
-      await updatePurchase(selectedPurchase.id, updatedPurchase, purchaseDetails);
-      await loadPurchases();
-      setIsEditDialogOpen(false);
-      setFormData({
-        tanggal_pemesanan: new Date().toISOString().split('T')[0],
-        no_pesanan: '',
-        marketplace_supplier: '',
-        akun: '',
-        status: 'pending',
-        total_harga: 0
-      });
-      setPurchaseDetails([]);
-    } catch (err) {
-      console.error('Error updating purchase:', err);
-      setError('Gagal memperbarui pembelian');
     }
   };
 
@@ -391,14 +384,14 @@ const PembelianModule = () => {
         <Card>
           <CardHeader>
             <div className="flex justify-between items-center">
-              <CardTitle>Tambah Pembelian Baru</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)}>
+              <CardTitle>{editMode ? 'Edit Pembelian' : 'Tambah Pembelian Baru'}</CardTitle>
+              <Button variant="ghost" size="sm" onClick={editMode ? handleCancelEdit : () => setShowAddForm(false)}>
                 <X className="w-4 h-4" />
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleFormSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
                   <Label htmlFor="tanggal_pemesanan">Tanggal Pemesanan</Label>
@@ -559,6 +552,7 @@ const PembelianModule = () => {
                             <TableCell>{formatCurrency(detail.total_harga)}</TableCell>
                             <TableCell>
                               <Button
+                                type="button"
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => removeDetail(index)}
@@ -575,11 +569,13 @@ const PembelianModule = () => {
               </div>
 
               <div className="flex justify-end space-x-2">
-                <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
-                  Batal
-                </Button>
+                {editMode && (
+                  <Button type="button" variant="outline" onClick={handleCancelEdit}>
+                    Batal Edit
+                  </Button>
+                )}
                 <Button type="submit" disabled={purchaseDetails.length === 0}>
-                  Simpan
+                  {editMode ? 'Simpan Perubahan' : 'Simpan'}
                 </Button>
               </div>
             </form>
@@ -589,7 +585,7 @@ const PembelianModule = () => {
 
       {/* View Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>Detail Pembelian</DialogTitle>
           </DialogHeader>
@@ -656,214 +652,6 @@ const PembelianModule = () => {
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Edit Pembelian</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleUpdate} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="tanggal_pemesanan">Tanggal Pemesanan</Label>
-                <Input
-                  id="tanggal_pemesanan"
-                  name="tanggal_pemesanan"
-                  type="date"
-                  value={formData.tanggal_pemesanan}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="no_pesanan">No. Pesanan</Label>
-                <Input
-                  id="no_pesanan"
-                  name="no_pesanan"
-                  value={formData.no_pesanan}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="marketplace_supplier">Marketplace/Supplier</Label>
-                <Input
-                  id="marketplace_supplier"
-                  name="marketplace_supplier"
-                  value={formData.marketplace_supplier}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="akun">Akun</Label>
-                <Input
-                  id="akun"
-                  name="akun"
-                  value={formData.akun}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <select
-                  id="status"
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                  required
-                >
-                  <option value="pending">Pending</option>
-                  <option value="shipped">Shipped</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="border rounded-lg p-4 space-y-4">
-              <h3 className="font-medium">Detail Barang</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label>Nama Barang</Label>
-                  <Popover open={open} onOpenChange={setOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={open}
-                        className="w-full justify-between"
-                      >
-                        {currentDetail.product?.name || "Pilih barang..."}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[400px] p-0">
-                      <Command>
-                        <CommandInput
-                          placeholder="Cari barang..."
-                          value={searchQuery}
-                          onValueChange={setSearchQuery}
-                        />
-                        <CommandEmpty>Tidak ada hasil</CommandEmpty>
-                        <CommandGroup>
-                          {searchResults.map((product) => (
-                            <CommandItem
-                              key={product.id}
-                              value={product.name}
-                              onSelect={() => handleProductSelect(product)}
-                            >
-                              <div className="flex flex-col">
-                                <span>{product.name}</span>
-                                <span className="text-sm text-gray-500">{product.code}</span>
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="qty">Jumlah</Label>
-                <Input
-                  id="qty"
-                  name="qty"
-                  type="number"
-                    value={currentDetail.qty || ''}
-                    onChange={handleDetailChange}
-                    required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                  <Label htmlFor="harga_per_unit">Harga Per Unit</Label>
-                <Input
-                    id="harga_per_unit"
-                    name="harga_per_unit"
-                  type="number"
-                    value={currentDetail.harga_per_unit || ''}
-                    onChange={handleDetailChange}
-                    required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                  <Label>Total</Label>
-                <Input
-                    value={formatCurrency(currentDetail.total_harga)}
-                  readOnly
-                  className="bg-gray-50"
-                />
-              </div>
-            </div>
-            
-              <Button 
-                type="button"
-                onClick={addDetail}
-                disabled={!currentDetail.product_id || !currentDetail.qty || !currentDetail.harga_per_unit}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Tambah Barang
-              </Button>
-
-              {purchaseDetails.length > 0 && (
-                <div className="mt-4">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Nama Barang</TableHead>
-                        <TableHead>Kode</TableHead>
-                        <TableHead>Jumlah</TableHead>
-                        <TableHead>Harga/Unit</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {purchaseDetails.map((detail, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{detail.product?.name}</TableCell>
-                          <TableCell>{detail.product?.code}</TableCell>
-                          <TableCell>{detail.qty}</TableCell>
-                          <TableCell>{formatCurrency(detail.harga_per_unit)}</TableCell>
-                          <TableCell>{formatCurrency(detail.total_harga)}</TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeDetail(index)}
-                            >
-                              <Trash2 className="w-4 h-4 text-red-500" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-            </div>
-              )}
-            </div>
-            
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Batal
-              </Button>
-              <Button type="submit" disabled={purchaseDetails.length === 0}>
-                Simpan Perubahan
-              </Button>
-            </DialogFooter>
-          </form>
         </DialogContent>
       </Dialog>
 
