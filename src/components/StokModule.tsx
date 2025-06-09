@@ -1,65 +1,43 @@
+
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { 
   Package, 
   Plus, 
   Search, 
+  Edit, 
+  Trash2, 
   AlertTriangle,
-  TrendingDown,
   TrendingUp,
-  Eye,
-  X,
-  Edit,
-  SquarePen,
-  Trash2
+  TrendingDown
 } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { getProducts, createProduct, updateProduct, deleteProduct } from '@/integrations/supabase/db';
-import type { Database } from '@/integrations/supabase/types';
-
-type Product = Database['public']['Tables']['products']['Row'];
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getProducts, addProduct, updateProduct, deleteProduct } from '@/integrations/supabase/db';
+import { toast } from 'sonner';
 
 const StokModule = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('all');
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [showDetailDialog, setShowDetailDialog] = useState(false);
-  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+
   const [formData, setFormData] = useState({
     code: '',
     name: '',
     category: '',
-    current_stock: '',
-    min_stock: '',
-    max_stock: '',
-    harga_jual: '',
-    last_update: new Date().toISOString().split('T')[0],
-    status: 'good' as Product['status']
+    current_stock: 0,
+    min_stock: 0,
+    max_stock: 0,
+    harga_jual: 0,
+    wac_harga_beli: 0,
+    status: 'active'
   });
 
   useEffect(() => {
@@ -70,700 +48,407 @@ const StokModule = () => {
     try {
       setLoading(true);
       const data = await getProducts();
-      // Update status for each product based on new logic
-      const updatedData = data.map(product => ({
-        ...product,
-        status: getStockStatus(parseInt(product.current_stock) || 0, parseInt(product.min_stock) || 0, parseInt(product.max_stock) || 0)
-      }));
-      setProducts(updatedData);
-      setError(null);
-    } catch (err) {
-      setError('Gagal memuat data produk');
-      console.error('Error loading products:', err);
+      setProducts(data);
+    } catch (error) {
+      console.error('Error loading products:', error);
+      toast.error('Gagal memuat data produk');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const validateMaxStock = (min: number, max: number): boolean => {
-    return max >= min + 4;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const currentStock = parseInt(formData.current_stock) || 0;
-      const minStock = parseInt(formData.min_stock) || 0;
-      const maxStock = parseInt(formData.max_stock) || 0;
-      const hargaJual = parseFloat(formData.harga_jual) || 0;
-
-      if (!validateMaxStock(minStock, maxStock)) {
-        setError('Stok maksimum harus lebih besar atau sama dengan stok minimum + 4');
-        return;
-      }
-
-      const newProduct = {
+      const productData = {
         ...formData,
-        current_stock: currentStock,
-        min_stock: minStock,
-        max_stock: maxStock,
-        harga_jual: hargaJual,
-        status: getStockStatus(currentStock, minStock, maxStock)
+        current_stock: Number(formData.current_stock),
+        min_stock: Number(formData.min_stock),
+        max_stock: Number(formData.max_stock),
+        harga_jual: Number(formData.harga_jual),
+        wac_harga_beli: Number(formData.wac_harga_beli),
+        avg_sales: 0, // Add default value for avg_sales
+        last_update: new Date().toISOString()
       };
 
-      await createProduct(newProduct);
-      await loadProducts();
-      setShowAddForm(false);
-      setFormData({
-        code: '',
-        name: '',
-        category: '',
-        current_stock: '',
-        min_stock: '',
-        max_stock: '',
-        harga_jual: '',
-        last_update: new Date().toISOString().split('T')[0],
-        status: 'good'
-      });
-      setError(null);
-    } catch (err) {
-      setError('Gagal menambahkan produk');
-      console.error('Error creating product:', err);
-    }
-  };
-
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProduct) return;
-
-    try {
-      const currentStock = parseInt(formData.current_stock) || 0;
-      const minStock = parseInt(formData.min_stock) || 0;
-      const maxStock = parseInt(formData.max_stock) || 0;
-      const hargaJual = parseFloat(formData.harga_jual) || 0;
-
-      if (!validateMaxStock(minStock, maxStock)) {
-        setError('Stok maksimum harus lebih besar atau sama dengan stok minimum + 4');
-        return;
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, productData);
+        toast.success('Produk berhasil diperbarui');
+      } else {
+        await addProduct(productData);
+        toast.success('Produk berhasil ditambahkan');
       }
-
-      const updatedProduct = {
-        ...formData,
-        current_stock: currentStock,
-        min_stock: minStock,
-        max_stock: maxStock,
-        harga_jual: hargaJual,
-        status: getStockStatus(currentStock, minStock, maxStock)
-      };
-
-      await updateProduct(selectedProduct.id, updatedProduct);
-      await loadProducts();
-      setShowUpdateDialog(false);
-      setSelectedProduct(null);
-      setError(null);
-    } catch (err) {
-      setError('Gagal mengupdate produk');
-      console.error('Error updating product:', err);
+      
+      setIsDialogOpen(false);
+      resetForm();
+      loadProducts();
+    } catch (error) {
+      console.error('Error saving product:', error);
+      toast.error('Gagal menyimpan produk');
     }
   };
 
-  const handleDelete = async () => {
-    if (!selectedProduct) return;
-
-    try {
-      await deleteProduct(selectedProduct.id);
-      await loadProducts();
-      setShowDeleteDialog(false);
-      setSelectedProduct(null);
-    } catch (err) {
-      setError('Gagal menghapus produk');
-      console.error('Error deleting product:', err);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'critical': return 'bg-red-100 text-red-800';
-      case 'low': return 'bg-orange-100 text-orange-800';
-      case 'good': return 'bg-green-100 text-green-800';
-      case 'overstock': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch(status) {
-      case 'critical': return <AlertTriangle className="w-4 h-4" />;
-      case 'low': return <TrendingDown className="w-4 h-4" />;
-      case 'good': return <TrendingUp className="w-4 h-4" />;
-      case 'overstock': return <Package className="w-4 h-4" />;
-      default: return null;
-    }
-  };
-
-  const getStockStatus = (current: number, min: number, max: number): Product['status'] => {
-    // Cek overstock terlebih dahulu
-    if (current > max) return 'overstock';
-    // Kemudian cek status lainnya
-    if (current < min) return 'critical';
-    if (current <= min + 4) return 'low';
-    return 'good';
-  };
-
-  const handleViewDetail = (product: Product) => {
-    setSelectedProduct(product);
-    setShowDetailDialog(true);
-  };
-
-  const handleUpdateClick = (product: Product) => {
-    setSelectedProduct(product);
+  const handleEdit = (product) => {
+    setEditingProduct(product);
     setFormData({
       code: product.code,
       name: product.name,
       category: product.category,
-      current_stock: product.current_stock.toString(),
-      min_stock: product.min_stock.toString(),
-      max_stock: product.max_stock.toString(),
-      harga_jual: product.harga_jual?.toString() || '',
-      last_update: product.last_update,
+      current_stock: product.current_stock,
+      min_stock: product.min_stock,
+      max_stock: product.max_stock,
+      harga_jual: product.harga_jual || 0,
+      wac_harga_beli: product.wac_harga_beli || 0,
       status: product.status
     });
-    setShowUpdateDialog(true);
+    setIsDialogOpen(true);
   };
 
-  const handleDeleteClick = (product: Product) => {
-    setSelectedProduct(product);
-    setShowDeleteDialog(true);
+  const handleDelete = async (id) => {
+    if (window.confirm('Apakah Anda yakin ingin menghapus produk ini?')) {
+      try {
+        await deleteProduct(id);
+        toast.success('Produk berhasil dihapus');
+        loadProducts();
+      } catch (error) {
+        console.error('Error deleting product:', error);
+        toast.error('Gagal menghapus produk');
+      }
+    }
   };
 
-  const filteredData = products.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = selectedFilter === 'all' || item.status === selectedFilter;
-    return matchesSearch && matchesFilter;
+  const resetForm = () => {
+    setFormData({
+      code: '',
+      name: '',
+      category: '',
+      current_stock: 0,
+      min_stock: 0,
+      max_stock: 0,
+      harga_jual: 0,
+      wac_harga_beli: 0,
+      status: 'active'
+    });
+    setEditingProduct(null);
+  };
+
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.code.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory === 'all' || product.category === filterCategory;
+    return matchesSearch && matchesCategory;
   });
 
-  const stockSummary = {
-    total: products.length,
-    critical: products.filter(item => item.status === 'critical').length,
-    low: products.filter(item => item.status === 'low').length,
-    good: products.filter(item => item.status === 'good').length,
-    overstock: products.filter(item => item.status === 'overstock').length,
+  const categories = [...new Set(products.map(p => p.category))];
+  const lowStockProducts = products.filter(p => p.current_stock <= p.min_stock);
+  const criticalStockProducts = products.filter(p => p.current_stock < p.min_stock);
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR'
+    }).format(amount);
   };
 
-  // Validasi stok minimum > 0 dan stok maksimum >= minimum + 4
-  const isMinStockValid = parseInt(formData.min_stock) > 0;
-  const isMaxStockValid = validateMaxStock(parseInt(formData.min_stock), parseInt(formData.max_stock));
-  const isFormValid = isMinStockValid && isMaxStockValid;
-
   if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return <div className="text-red-500">{error}</div>;
+    return <div className="p-6">Loading products...</div>;
   }
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-6 space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Modul Stok</h1>
-          <p className="text-gray-600 mt-1">Kelola inventori dan monitoring stok real-time</p>
+          <h1 className="text-3xl font-bold text-gray-900">Manajemen Stok</h1>
+          <p className="text-gray-600 mt-1">Kelola inventori dan stok produk</p>
         </div>
-        <Button onClick={() => setShowAddForm(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Tambah Produk
-        </Button>
-      </div>
-
-      {showAddForm && (
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>Tambah Produk Baru</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={resetForm}>
+              <Plus className="w-4 h-4 mr-2" />
+              Tambah Produk
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>{editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}</DialogTitle>
+              <DialogDescription>
+                Lengkapi informasi produk di bawah ini
+              </DialogDescription>
+            </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label htmlFor="code">Kode Produk</Label>
                   <Input
                     id="code"
-                    name="code"
                     value={formData.code}
-                    onChange={handleInputChange}
-                    placeholder="MP-XK-M32-C"
+                    onChange={(e) => setFormData({...formData, code: e.target.value})}
                     required
                   />
                 </div>
-                <div className="space-y-2">
+                <div>
                   <Label htmlFor="name">Nama Produk</Label>
                   <Input
                     id="name"
-                    name="name"
                     value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="Baby Milk Powder Premium"
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
                     required
                   />
                 </div>
-                <div className="space-y-2">
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label htmlFor="category">Kategori</Label>
                   <Input
                     id="category"
-                    name="category"
                     value={formData.category}
-                    onChange={handleInputChange}
-                    placeholder="Baby Care"
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
                     required
                   />
                 </div>
-                <div className="space-y-2">
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={formData.status} onValueChange={(value) => setFormData({...formData, status: value})}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Aktif</SelectItem>
+                      <SelectItem value="inactive">Tidak Aktif</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
                   <Label htmlFor="current_stock">Stok Saat Ini</Label>
                   <Input
                     id="current_stock"
-                    name="current_stock"
                     type="number"
                     value={formData.current_stock}
-                    onChange={handleInputChange}
+                    onChange={(e) => setFormData({...formData, current_stock: parseInt(e.target.value) || 0})}
                     required
                   />
                 </div>
-                <div className="space-y-2">
+                <div>
                   <Label htmlFor="min_stock">Stok Minimum</Label>
                   <Input
                     id="min_stock"
-                    name="min_stock"
                     type="number"
                     value={formData.min_stock}
-                    onChange={handleInputChange}
+                    onChange={(e) => setFormData({...formData, min_stock: parseInt(e.target.value) || 0})}
                     required
-                    min={1}
                   />
-                  {!isMinStockValid && (
-                    <p className="text-sm text-red-500 mt-1">
-                      Stok minimum harus lebih dari 0
-                    </p>
-                  )}
                 </div>
-                <div className="space-y-2">
+                <div>
                   <Label htmlFor="max_stock">Stok Maksimum</Label>
                   <Input
                     id="max_stock"
-                    name="max_stock"
                     type="number"
                     value={formData.max_stock}
-                    onChange={handleInputChange}
+                    onChange={(e) => setFormData({...formData, max_stock: parseInt(e.target.value) || 0})}
                     required
                   />
-                  {parseInt(formData.min_stock) > 0 && parseInt(formData.max_stock) > 0 && 
-                   !validateMaxStock(parseInt(formData.min_stock), parseInt(formData.max_stock)) && (
-                    <p className="text-sm text-red-500 mt-1">
-                      Stok maksimum harus ≥ {parseInt(formData.min_stock) + 4}
-                    </p>
-                  )}
                 </div>
-                <div className="space-y-2">
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label htmlFor="harga_jual">Harga Jual</Label>
                   <Input
                     id="harga_jual"
-                    name="harga_jual"
                     type="number"
                     value={formData.harga_jual}
-                    onChange={handleInputChange}
+                    onChange={(e) => setFormData({...formData, harga_jual: parseFloat(e.target.value) || 0})}
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="last_update">Tanggal Update</Label>
+                <div>
+                  <Label htmlFor="wac_harga_beli">Harga Beli (WAC)</Label>
                   <Input
-                    id="last_update"
-                    name="last_update"
-                    type="date"
-                    value={formData.last_update}
-                    onChange={handleInputChange}
+                    id="wac_harga_beli"
+                    type="number"
+                    value={formData.wac_harga_beli}
+                    onChange={(e) => setFormData({...formData, wac_harga_beli: parseFloat(e.target.value) || 0})}
                     required
                   />
                 </div>
               </div>
-              {error && (
-                <div className="text-sm text-red-500 mt-2">
-                  {error}
-                </div>
-              )}
               <div className="flex justify-end space-x-2">
-                <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Batal
                 </Button>
-                <Button type="submit" disabled={!isFormValid}>
-                  Simpan
+                <Button type="submit">
+                  {editingProduct ? 'Perbarui' : 'Simpan'}
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
-      )}
+          </DialogContent>
+        </Dialog>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card className="smart-card">
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-gray-900">{stockSummary.total}</div>
-            <p className="text-sm text-gray-600">Total Produk</p>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Produk</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{products.length}</div>
+            <p className="text-xs text-muted-foreground">Produk terdaftar</p>
           </CardContent>
         </Card>
-        
-        <Card className="smart-card border-red-200">
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">{stockSummary.critical}</div>
-            <p className="text-sm text-gray-600">Kritis</p>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stok Menipis</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{lowStockProducts.length}</div>
+            <p className="text-xs text-muted-foreground">Perlu restok</p>
           </CardContent>
         </Card>
-        
-        <Card className="smart-card border-orange-200">
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-orange-600">{stockSummary.low}</div>
-            <p className="text-sm text-gray-600">Rendah</p>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stok Kritis</CardTitle>
+            <TrendingDown className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{criticalStockProducts.length}</div>
+            <p className="text-xs text-muted-foreground">Segera restok</p>
           </CardContent>
         </Card>
-        
-        <Card className="smart-card border-green-200">
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{stockSummary.good}</div>
-            <p className="text-sm text-gray-600">Aman</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="smart-card border-blue-200">
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stockSummary.overstock}</div>
-            <p className="text-sm text-gray-600">Berlebih</p>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Nilai Inventori</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(products.reduce((sum, p) => sum + (p.current_stock * (p.wac_harga_beli || 0)), 0))}
+            </div>
+            <p className="text-xs text-muted-foreground">Total nilai stok</p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Filters */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Cari nama produk atau kode..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+        <CardHeader>
+          <CardTitle>Filter & Pencarian</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex space-x-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Cari produk..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-            
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant={selectedFilter === 'all' ? 'default' : 'outline'}
-                onClick={() => setSelectedFilter('all')}
-                size="sm"
-              >
-                Semua
-              </Button>
-              <Button
-                variant={selectedFilter === 'critical' ? 'default' : 'outline'}
-                onClick={() => setSelectedFilter('critical')}
-                size="sm"
-              >
-                Kritis
-              </Button>
-              <Button
-                variant={selectedFilter === 'low' ? 'default' : 'outline'}
-                onClick={() => setSelectedFilter('low')}
-                size="sm"
-              >
-                Rendah
-              </Button>
-              <Button
-                variant={selectedFilter === 'good' ? 'default' : 'outline'}
-                onClick={() => setSelectedFilter('good')}
-                size="sm"
-              >
-                Aman
-              </Button>
-              <Button
-                variant={selectedFilter === 'overstock' ? 'default' : 'outline'}
-                onClick={() => setSelectedFilter('overstock')}
-                size="sm"
-              >
-                Berlebih
-              </Button>
-            </div>
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Semua Kategori" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Kategori</SelectItem>
+                {categories.map(category => (
+                  <SelectItem key={category} value={category}>{category}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
+      {/* Products Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Package className="w-5 h-5 text-smart-blue" />
-            <span>Daftar Inventori</span>
-          </CardTitle>
+          <CardTitle>Daftar Produk</CardTitle>
+          <CardDescription>
+            Menampilkan {filteredProducts.length} dari {products.length} produk
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <div className="space-y-4">
-              {filteredData.map((item) => (
-                <div key={item.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                  <div className="grid grid-cols-1 md:grid-cols-8 gap-4 items-center">
-                    <div className="md:col-span-3">
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(item.status)}
-                        <div>
-                          <p className="font-medium text-gray-900">{item.code}</p>
-                          <p className="text-sm text-gray-600">{item.name}</p>
-                          <Badge variant="outline" className="text-xs mt-1">{item.category}</Badge>
-                        </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-2">Kode</th>
+                  <th className="text-left p-2">Nama Produk</th>
+                  <th className="text-left p-2">Kategori</th>
+                  <th className="text-right p-2">Stok</th>
+                  <th className="text-right p-2">Harga Jual</th>
+                  <th className="text-center p-2">Status</th>
+                  <th className="text-center p-2">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts.map((product) => (
+                  <tr key={product.id} className="border-b hover:bg-gray-50">
+                    <td className="p-2 font-mono text-sm">{product.code}</td>
+                    <td className="p-2">
+                      <div>
+                        <div className="font-medium">{product.name}</div>
+                        {product.current_stock <= product.min_stock && (
+                          <Badge variant="destructive" className="text-xs mt-1">
+                            {product.current_stock < product.min_stock ? 'Kritis' : 'Menipis'}
+                          </Badge>
+                        )}
                       </div>
-                    </div>
-                    
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-gray-900">{item.current_stock}</p>
-                      <p className="text-xs text-gray-600">Stok Saat Ini</p>
-                    </div>
-                    
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">Min: {item.min_stock}</p>
-                      <p className="text-sm text-gray-600">Max: {item.max_stock}</p>
-                    </div>
-                    
-                    <div className="text-center">
-                      <Badge className={getStatusColor(item.status)}>
-                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    </td>
+                    <td className="p-2">{product.category}</td>
+                    <td className="p-2 text-right">
+                      <span className={
+                        product.current_stock < product.min_stock ? 'text-red-600 font-bold' :
+                        product.current_stock <= product.min_stock ? 'text-orange-600 font-medium' :
+                        'text-gray-900'
+                      }>
+                        {product.current_stock}
+                      </span>
+                    </td>
+                    <td className="p-2 text-right">{formatCurrency(product.harga_jual || 0)}</td>
+                    <td className="p-2 text-center">
+                      <Badge variant={product.status === 'active' ? 'default' : 'secondary'}>
+                        {product.status === 'active' ? 'Aktif' : 'Tidak Aktif'}
                       </Badge>
-                      <p className="text-xs text-gray-600 mt-1">{item.harga_jual ? `Rp${item.harga_jual.toLocaleString('id-ID')}` : '-'}</p>
-                    </div>
-                    
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">WAC Beli</p>
-                      <p className="text-base font-semibold text-blue-700">{item.wac_harga_beli ? `Rp${Math.floor(item.wac_harga_beli).toLocaleString('id-ID')}` : '-'}</p>
-                    </div>
-                    
-                    <div className="flex space-x-2">
-                      <Button size="sm" variant="outline" onClick={() => handleViewDetail(item)}>
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleUpdateClick(item)}>
-                        <SquarePen className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleDeleteClick(item)}>
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    </td>
+                    <td className="p-2 text-center">
+                      <div className="flex justify-center space-x-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(product)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(product.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredProducts.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                Tidak ada produk yang ditemukan
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
-
-      {/* Detail Dialog */}
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Detail Produk</DialogTitle>
-          </DialogHeader>
-          {selectedProduct && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Kode Produk</p>
-                  <p className="text-base">{selectedProduct.code}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Nama Produk</p>
-                  <p className="text-base">{selectedProduct.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Kategori</p>
-                  <p className="text-base">{selectedProduct.category}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Status</p>
-                  <Badge className={getStatusColor(selectedProduct.status)}>
-                    {selectedProduct.status.charAt(0).toUpperCase() + selectedProduct.status.slice(1)}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Stok Saat Ini</p>
-                  <p className="text-base">{selectedProduct.current_stock}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Stok Minimum</p>
-                  <p className="text-base">{selectedProduct.min_stock}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Stok Maksimum</p>
-                  <p className="text-base">{selectedProduct.max_stock}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Harga Jual</p>
-                  <p className="text-base">{selectedProduct.harga_jual ? `Rp${selectedProduct.harga_jual.toLocaleString('id-ID')}` : '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">WAC Beli</p>
-                  <p className="text-base font-semibold text-blue-700">{selectedProduct.wac_harga_beli ? `Rp${Math.floor(selectedProduct.wac_harga_beli).toLocaleString('id-ID')}` : '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Terakhir Update</p>
-                  <p className="text-base">{selectedProduct.last_update}</p>
-                </div>
-              </div>
-          </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
-              Tutup
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Update Dialog */}
-      <Dialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Update Produk</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleUpdate} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="update_code">Kode Produk</Label>
-                <Input
-                  id="update_code"
-                  name="code"
-                  value={formData.code}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="update_name">Nama Produk</Label>
-                <Input
-                  id="update_name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="update_category">Kategori</Label>
-                <Input
-                  id="update_category"
-                  name="category"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="update_current_stock">Stok Saat Ini</Label>
-                <Input
-                  id="update_current_stock"
-                  name="current_stock"
-                  type="number"
-                  value={formData.current_stock}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="update_min_stock">Stok Minimum</Label>
-                <Input
-                  id="update_min_stock"
-                  name="min_stock"
-                  type="number"
-                  value={formData.min_stock}
-                  onChange={handleInputChange}
-                  required
-                  min={1}
-                />
-                {!isMinStockValid && (
-                  <p className="text-sm text-red-500 mt-1">
-                    Stok minimum harus lebih dari 0
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="update_max_stock">Stok Maksimum</Label>
-                <Input
-                  id="update_max_stock"
-                  name="max_stock"
-                  type="number"
-                  value={formData.max_stock}
-                  onChange={handleInputChange}
-                  required
-                />
-                {parseInt(formData.min_stock) > 0 && parseInt(formData.max_stock) > 0 && 
-                 !validateMaxStock(parseInt(formData.min_stock), parseInt(formData.max_stock)) && (
-                  <p className="text-sm text-red-500 mt-1">
-                    Stok maksimum harus ≥ {parseInt(formData.min_stock) + 4}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="update_harga_jual">Harga Jual</Label>
-                <Input
-                  id="update_harga_jual"
-                  name="harga_jual"
-                  type="number"
-                  value={formData.harga_jual}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-            </div>
-            {error && (
-              <div className="text-sm text-red-500 mt-2">
-                {error}
-              </div>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowUpdateDialog(false)}>
-                Batal
-              </Button>
-              <Button type="submit" disabled={!isFormValid}>
-                Simpan Perubahan
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Apakah Anda yakin?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tindakan ini tidak dapat dibatalkan. Ini akan menghapus produk ini secara permanen?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">
-              Hapus
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
