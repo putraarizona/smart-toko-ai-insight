@@ -93,6 +93,7 @@ const PembelianModule = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editPurchaseId, setEditPurchaseId] = useState<number | null>(null);
+  const [prevStatus, setPrevStatus] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<PurchaseFormData>({
     tanggal_pemesanan: new Date().toISOString().split('T')[0],
@@ -229,6 +230,7 @@ const PembelianModule = () => {
         harga_per_unit: detail.harga_per_unit,
         total_harga: detail.total_harga
       })));
+      setPrevStatus(data.status);
       setEditMode(true);
       setEditPurchaseId(data.id);
       setShowAddForm(true);
@@ -241,6 +243,7 @@ const PembelianModule = () => {
   const handleCancelEdit = () => {
     setEditMode(false);
     setEditPurchaseId(null);
+    setPrevStatus(null);
     setFormData({
       tanggal_pemesanan: new Date().toISOString().split('T')[0],
       no_pesanan: '',
@@ -252,6 +255,21 @@ const PembelianModule = () => {
     setPurchaseDetails([]);
     setShowAddForm(false);
   };
+
+  async function updateProductStockOnCompleted(details) {
+    for (const detail of details) {
+      const { data: product, error } = await supabase
+        .from('products')
+        .select('current_stock')
+        .eq('id', detail.product_id)
+        .single();
+      if (error || !product) continue;
+      await supabase
+        .from('products')
+        .update({ current_stock: product.current_stock + detail.qty })
+        .eq('id', detail.product_id);
+    }
+  }
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,8 +290,12 @@ const PembelianModule = () => {
           total_harga: totalHarga
         };
         await updatePurchase(editPurchaseId, updatedPurchase, purchaseDetails);
+        if (prevStatus !== 'completed' && formData.status === 'completed') {
+          await updateProductStockOnCompleted(purchaseDetails);
+        }
         setEditMode(false);
         setEditPurchaseId(null);
+        setPrevStatus(null);
       } else {
         // Create
         const newPurchase = {
@@ -285,6 +307,9 @@ const PembelianModule = () => {
           total_harga: totalHarga
         };
         await createPurchase(newPurchase, purchaseDetails);
+        if (formData.status === 'completed') {
+          await updateProductStockOnCompleted(purchaseDetails);
+        }
       }
       await loadPurchases();
       setShowAddForm(false);
