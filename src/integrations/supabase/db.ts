@@ -194,4 +194,152 @@ export async function deletePurchase(id: number) {
     .eq('id', id);
 
   if (purchaseError) throw purchaseError;
-} 
+}
+
+// Sales functions
+export async function getSales() {
+  const { data, error } = await supabase
+    .from('sales')
+    .select(`
+      *,
+      sales_details (
+        *,
+        product:products (*)
+      )
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getSaleById(id: number) {
+  const { data, error } = await supabase
+    .from('sales')
+    .select(`
+      *,
+      sales_details (
+        *,
+        product:products (*)
+      )
+    `)
+    .eq('id', id)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function createSale(
+  sale: Database['public']['Tables']['sales']['Insert'],
+  details: Array<Omit<Database['public']['Tables']['sales_details']['Insert'], 'sale_id'>>
+) {
+  const { data: saleData, error: saleError } = await supabase
+    .from('sales')
+    .insert(sale)
+    .select()
+    .single();
+
+  if (saleError) throw saleError;
+
+  const salesDetails = details.map(detail => ({
+    ...detail,
+    sale_id: saleData.id
+  }));
+
+  const { error: detailsError } = await supabase
+    .from('sales_details')
+    .insert(salesDetails);
+
+  if (detailsError) throw detailsError;
+
+  return saleData;
+}
+
+export async function updateSaleStatus(id: number, status: Database['public']['Tables']['sales']['Row']['status']) {
+  const { data, error } = await supabase
+    .from('sales')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteSale(id: number) {
+  // Delete sale details first (will trigger stock restoration)
+  const { error: detailsError } = await supabase
+    .from('sales_details')
+    .delete()
+    .eq('sale_id', id);
+
+  if (detailsError) throw detailsError;
+
+  // Then delete the sale
+  const { error: saleError } = await supabase
+    .from('sales')
+    .delete()
+    .eq('id', id);
+
+  if (saleError) throw saleError;
+}
+
+// User roles functions
+export async function getCurrentUserRole() {
+  const { data, error } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+    .single();
+
+  if (error) throw error;
+  return data?.role;
+}
+
+export async function getUserRoles() {
+  const { data, error } = await supabase
+    .from('user_roles')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateUserRole(userId: string, role: Database['public']['Tables']['user_roles']['Row']['role']) {
+  const { data, error } = await supabase
+    .from('user_roles')
+    .update({ role })
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Profile functions
+export async function getCurrentUserProfile() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', (await supabase.auth.getUser()).data.user?.id)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateProfile(profile: Database['public']['Tables']['profiles']['Update']) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(profile)
+    .eq('id', (await supabase.auth.getUser()).data.user?.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}

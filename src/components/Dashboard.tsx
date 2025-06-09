@@ -1,201 +1,264 @@
 
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { 
   TrendingUp, 
+  TrendingDown, 
+  DollarSign, 
   Package, 
-  ShoppingCart, 
-  DollarSign,
+  ShoppingCart,
+  Users,
   AlertTriangle,
-  Star
+  Calendar
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { getProducts, getSales } from '@/integrations/supabase/db';
+import { useAuth } from './AuthProvider';
 
 const Dashboard = () => {
-  const statsData = [
-    { title: 'Total Produk', value: '1,247', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { title: 'Penjualan Hari Ini', value: 'Rp 2,450,000', icon: ShoppingCart, color: 'text-green-600', bg: 'bg-green-50' },
-    { title: 'Laba Kotor', value: 'Rp 850,000', icon: DollarSign, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { title: 'Stok Menipis', value: '23', icon: AlertTriangle, color: 'text-orange-600', bg: 'bg-orange-50' },
-  ];
+  const { isOwner, profile } = useAuth();
+  const [products, setProducts] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const salesData = [
-    { name: 'Sen', value: 2400 },
-    { name: 'Sel', value: 1398 },
-    { name: 'Rab', value: 2800 },
-    { name: 'Kam', value: 3908 },
-    { name: 'Jum', value: 4800 },
-    { name: 'Sab', value: 3800 },
-    { name: 'Min', value: 4300 },
-  ];
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [productsData, salesData] = await Promise.all([
+          getProducts(),
+          getSales()
+        ]);
+        setProducts(productsData);
+        setSales(salesData);
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const topProducts = [
-    { name: 'MP-XK-M32-C', sales: 145, stock: 23 },
-    { name: 'BP-XT-L45-A', sales: 132, stock: 45 },
-    { name: 'KD-MN-S12-B', sales: 98, stock: 12 },
-    { name: 'TP-QW-M67-D', sales: 87, stock: 67 },
-  ];
+    loadData();
+  }, []);
 
-  const categoryData = [
-    { name: 'Baby Care', value: 35, color: '#3B82F6' },
-    { name: 'Feeding', value: 25, color: '#10B981' },
-    { name: 'Clothing', value: 20, color: '#F97316' },
-    { name: 'Toys', value: 15, color: '#8B5CF6' },
-    { name: 'Others', value: 5, color: '#6B7280' },
-  ];
+  if (loading) {
+    return <div className="p-6">Loading dashboard...</div>;
+  }
+
+  // Calculate statistics
+  const totalProducts = products.length;
+  const lowStockProducts = products.filter(p => p.current_stock <= p.min_stock).length;
+  const criticalStockProducts = products.filter(p => p.current_stock < p.min_stock).length;
+  
+  const todaySales = sales.filter(s => {
+    const saleDate = new Date(s.sale_date);
+    const today = new Date();
+    return saleDate.toDateString() === today.toDateString() && s.status === 'completed';
+  });
+
+  const totalSalesToday = todaySales.reduce((sum, sale) => sum + sale.total_amount, 0);
+  const totalMarginToday = todaySales.reduce((sum, sale) => sum + sale.total_margin, 0);
+  const transactionCount = todaySales.length;
+
+  // Sample chart data (last 7 days)
+  const chartData = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - i));
+    const dayName = date.toLocaleDateString('id-ID', { weekday: 'short' });
+    
+    const daySales = sales.filter(s => {
+      const saleDate = new Date(s.sale_date);
+      return saleDate.toDateString() === date.toDateString() && s.status === 'completed';
+    });
+    
+    return {
+      name: dayName,
+      penjualan: daySales.reduce((sum, sale) => sum + sale.total_amount, 0),
+      margin: daySales.reduce((sum, sale) => sum + sale.total_margin, 0)
+    };
+  });
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR'
+    }).format(amount);
+  };
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-6 space-y-6">
+      {/* Welcome Section */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Selamat datang di SmartToko AI System</p>
+          <p className="text-gray-600 mt-1">
+            Selamat datang, {profile?.owner_name || 'User'}! 
+            {isOwner ? ' Berikut ringkasan toko Anda.' : ' Berikut ringkasan penjualan hari ini.'}
+          </p>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-gray-600">Today</p>
-          <p className="text-lg font-semibold text-gray-900">{new Date().toLocaleDateString('id-ID')}</p>
-        </div>
+        <Badge variant="outline" className="text-sm">
+          {new Date().toLocaleDateString('id-ID', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })}
+        </Badge>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statsData.map((stat, index) => {
-          const IconComponent = stat.icon;
-          return (
-            <Card key={index} className="smart-card hover:scale-105 transition-transform duration-200">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-2">{stat.value}</p>
-                  </div>
-                  <div className={`${stat.bg} p-3 rounded-full`}>
-                    <IconComponent className={`w-6 h-6 ${stat.color}`} />
-                  </div>
-                </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Penjualan Hari Ini</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalSalesToday)}</div>
+            <p className="text-xs text-muted-foreground">
+              {transactionCount} transaksi
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Margin Hari Ini</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalMarginToday)}</div>
+            <p className="text-xs text-muted-foreground">
+              Keuntungan bersih
+            </p>
+          </CardContent>
+        </Card>
+
+        {isOwner && (
+          <>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Produk</CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalProducts}</div>
+                <p className="text-xs text-muted-foreground">
+                  Barang dalam inventori
+                </p>
               </CardContent>
             </Card>
-          );
-        })}
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Stok Menipis</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">{lowStockProducts}</div>
+                <p className="text-xs text-muted-foreground">
+                  {criticalStockProducts} kritis
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Sales Chart */}
-        <Card className="smart-card">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <TrendingUp className="w-5 h-5 text-smart-blue" />
-              <span>Penjualan 7 Hari Terakhir</span>
-            </CardTitle>
+            <CardTitle>Penjualan 7 Hari Terakhir</CardTitle>
+            <CardDescription>Tren penjualan harian</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={salesData}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip formatter={(value) => [`Rp ${value.toLocaleString()}`, 'Penjualan']} />
-                <Bar dataKey="value" fill="url(#smartGradient)" radius={[4, 4, 0, 0]} />
-                <defs>
-                  <linearGradient id="smartGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.9}/>
-                    <stop offset="95%" stopColor="#10B981" stopOpacity={0.9}/>
-                  </linearGradient>
-                </defs>
+                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Bar dataKey="penjualan" fill="#3b82f6" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Category Distribution */}
-        <Card className="smart-card">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Package className="w-5 h-5 text-smart-green" />
-              <span>Distribusi Kategori</span>
-            </CardTitle>
+            <CardTitle>Margin 7 Hari Terakhir</CardTitle>
+            <CardDescription>Tren keuntungan harian</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}%`}
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Line type="monotone" dataKey="margin" stroke="#10b981" strokeWidth={2} />
+              </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Top Products & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="smart-card">
+      {/* Recent Transactions (for Owner) or Quick Actions (for Kasir) */}
+      {isOwner ? (
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Star className="w-5 h-5 text-smart-orange" />
-              <span>Produk Terlaris</span>
-            </CardTitle>
+            <CardTitle>Transaksi Terbaru</CardTitle>
+            <CardDescription>5 transaksi penjualan terakhir</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {topProducts.map((product, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="font-medium text-gray-900">{product.name}</p>
-                  <p className="text-sm text-gray-600">{product.sales} terjual</p>
+          <CardContent>
+            <div className="space-y-4">
+              {sales.slice(0, 5).map((sale) => (
+                <div key={sale.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium">{sale.sale_number}</p>
+                    <p className="text-sm text-gray-500">
+                      {new Date(sale.sale_date).toLocaleDateString('id-ID')} - {sale.cashier_name}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold">{formatCurrency(sale.total_amount)}</p>
+                    <Badge className={
+                      sale.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      sale.status === 'cancelled' ? 'bg-red-100 text-red-800' : 
+                      'bg-yellow-100 text-yellow-800'
+                    }>
+                      {sale.status}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-medium text-gray-900">Stok: {product.stock}</p>
-                  <p className={`text-sm ${product.stock < 20 ? 'text-orange-600' : 'text-green-600'}`}>
-                    {product.stock < 20 ? 'Perlu Restock' : 'Aman'}
-                  </p>
-                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Aksi Cepat</CardTitle>
+            <CardDescription>Shortcut untuk tugas harian</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 border rounded-lg text-center">
+                <ShoppingCart className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                <h3 className="font-medium">Transaksi Baru</h3>
+                <p className="text-sm text-gray-500">Buat penjualan baru</p>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card className="smart-card">
-          <CardHeader>
-            <CardTitle>AI Insights</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border-l-4 border-smart-blue">
-              <h4 className="font-medium text-gray-900 mb-2">📈 Rekomendasi Hari Ini</h4>
-              <p className="text-sm text-gray-700">
-                Produk "MP-XK-M32-C" memiliki tingkat penjualan tinggi tapi stok menipis. 
-                Pertimbangkan untuk restock dalam 2-3 hari.
-              </p>
-            </div>
-            
-            <div className="p-4 bg-gradient-to-r from-green-50 to-purple-50 rounded-lg border-l-4 border-smart-green">
-              <h4 className="font-medium text-gray-900 mb-2">💰 Analisis Margin</h4>
-              <p className="text-sm text-gray-700">
-                Kategori "Baby Care" memiliki margin terbaik (34.5%). 
-                Fokus pada promosi kategori ini untuk meningkatkan profit.
-              </p>
-            </div>
-
-            <div className="p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border-l-4 border-smart-orange">
-              <h4 className="font-medium text-gray-900 mb-2">⚠️ Alert</h4>
-              <p className="text-sm text-gray-700">
-                23 produk memiliki stok di bawah minimum. 
-                Periksa modul stok untuk detail lengkap.
-              </p>
+              <div className="p-4 border rounded-lg text-center">
+                <TrendingUp className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                <h3 className="font-medium">Riwayat Penjualan</h3>
+                <p className="text-sm text-gray-500">Lihat transaksi hari ini</p>
+              </div>
             </div>
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
   );
 };

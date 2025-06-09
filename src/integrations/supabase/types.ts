@@ -11,112 +11,368 @@ export type Database = {
     Tables: {
       products: {
         Row: {
-          id: number
-          code: string
-          name: string
+          avg_sales: number
           category: string
-          current_stock: number
-          min_stock: number
-          max_stock: number
-          avg_sales?: number | null
-          last_update: string
-          status: 'critical' | 'low' | 'good' | 'overstock'
-          harga_jual: number
-          wac_harga_beli: number
+          code: string
           created_at: string
+          current_stock: number
+          harga_jual: number | null
+          id: number
+          last_update: string
+          max_stock: number
+          min_stock: number
+          name: string
+          status: string
           updated_at: string
+          wac_harga_beli: number | null
         }
         Insert: {
-          code: string
-          name: string
+          avg_sales: number
           category: string
+          code: string
+          created_at?: string
           current_stock: number
-          min_stock: number
-          max_stock: number
-          avg_sales?: number | null
+          harga_jual?: number | null
+          id?: number
           last_update: string
-          status: 'critical' | 'low' | 'good' | 'overstock'
-          harga_jual?: number
-          wac_harga_beli?: number
+          max_stock: number
+          min_stock: number
+          name: string
+          status: string
+          updated_at?: string
+          wac_harga_beli?: number | null
         }
         Update: {
-          code?: string
-          name?: string
+          avg_sales?: number
           category?: string
+          code?: string
+          created_at?: string
           current_stock?: number
-          min_stock?: number
-          max_stock?: number
-          avg_sales?: number | null
+          harga_jual?: number | null
+          id?: number
           last_update?: string
-          status?: 'critical' | 'low' | 'good' | 'overstock'
-          harga_jual?: number
-          wac_harga_beli?: number
+          max_stock?: number
+          min_stock?: number
+          name?: string
+          status?: string
+          updated_at?: string
+          wac_harga_beli?: number | null
         }
+        Relationships: []
       }
-      purchases: {
+      profiles: {
         Row: {
-          id: number
-          tanggal_pemesanan: string
-          no_pesanan: string
-          marketplace_supplier: string
-          akun: string
-          status: 'pending' | 'shipped' | 'completed' | 'cancelled'
-          total_harga: number
-          created_at: string
-          updated_at: string
+          address: string | null
+          created_at: string | null
+          default_role: Database["public"]["Enums"]["user_role"] | null
+          id: string
+          owner_name: string | null
+          phone: string | null
+          store_name: string | null
+          updated_at: string | null
         }
         Insert: {
-          tanggal_pemesanan: string
-          no_pesanan: string
-          marketplace_supplier: string
-          akun: string
-          status: 'pending' | 'shipped' | 'completed' | 'cancelled'
-          total_harga: number
+          address?: string | null
+          created_at?: string | null
+          default_role?: Database["public"]["Enums"]["user_role"] | null
+          id: string
+          owner_name?: string | null
+          phone?: string | null
+          store_name?: string | null
+          updated_at?: string | null
         }
         Update: {
-          tanggal_pemesanan?: string
-          no_pesanan?: string
-          marketplace_supplier?: string
-          akun?: string
-          status?: 'pending' | 'shipped' | 'completed' | 'cancelled'
-          total_harga?: number
+          address?: string | null
+          created_at?: string | null
+          default_role?: Database["public"]["Enums"]["user_role"] | null
+          id?: string
+          owner_name?: string | null
+          phone?: string | null
+          store_name?: string | null
+          updated_at?: string | null
         }
+        Relationships: []
       }
       purchase_details: {
         Row: {
-          id: number
-          purchase_id: number
-          product_id: number
-          qty: number
-          harga_per_unit: number
-          total_harga: number
           created_at: string
+          harga_per_unit: number
+          id: number
+          product_id: number
+          purchase_id: number
+          qty: number
+          total_harga: number
           updated_at: string
         }
         Insert: {
-          purchase_id: number
-          product_id: number
-          qty: number
+          created_at?: string
           harga_per_unit: number
+          id?: number
+          product_id: number
+          purchase_id: number
+          qty: number
           total_harga: number
+          updated_at?: string
         }
         Update: {
-          purchase_id?: number
-          product_id?: number
-          qty?: number
+          created_at?: string
           harga_per_unit?: number
+          id?: number
+          product_id?: number
+          purchase_id?: number
+          qty?: number
           total_harga?: number
+          updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_details_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_details_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchases: {
+        Row: {
+          akun: string
+          created_at: string
+          id: number
+          marketplace_supplier: string
+          no_pesanan: string
+          status: string
+          tanggal_pemesanan: string
+          total_harga: number
+          updated_at: string
+        }
+        Insert: {
+          akun: string
+          created_at?: string
+          id?: number
+          marketplace_supplier: string
+          no_pesanan: string
+          status: string
+          tanggal_pemesanan: string
+          total_harga: number
+          updated_at?: string
+        }
+        Update: {
+          akun?: string
+          created_at?: string
+          id?: number
+          marketplace_supplier?: string
+          no_pesanan?: string
+          status?: string
+          tanggal_pemesanan?: string
+          total_harga?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sales: {
+        Row: {
+          cashier_name: string
+          created_at: string | null
+          discount_amount: number | null
+          id: number
+          notes: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          sale_date: string | null
+          sale_number: string
+          status: Database["public"]["Enums"]["sale_status"] | null
+          subtotal: number
+          tax_amount: number | null
+          total_amount: number
+          total_cost: number
+          total_margin: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cashier_name: string
+          created_at?: string | null
+          discount_amount?: number | null
+          id?: number
+          notes?: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          sale_date?: string | null
+          sale_number: string
+          status?: Database["public"]["Enums"]["sale_status"] | null
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          total_cost?: number
+          total_margin?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cashier_name?: string
+          created_at?: string | null
+          discount_amount?: number | null
+          id?: number
+          notes?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          sale_date?: string | null
+          sale_number?: string
+          status?: Database["public"]["Enums"]["sale_status"] | null
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          total_cost?: number
+          total_margin?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sales_details: {
+        Row: {
+          created_at: string | null
+          id: number
+          margin: number
+          product_code: string
+          product_id: number | null
+          product_name: string
+          quantity: number
+          sale_id: number
+          total_cost: number
+          total_price: number
+          unit_cost: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          margin: number
+          product_code: string
+          product_id?: number | null
+          product_name: string
+          quantity: number
+          sale_id: number
+          total_cost: number
+          total_price: number
+          unit_cost: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          margin?: number
+          product_code?: string
+          product_id?: number | null
+          product_name?: string
+          quantity?: number
+          sale_id?: number
+          total_cost?: number
+          total_price?: number
+          unit_cost?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_details_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_details_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_movements: {
+        Row: {
+          created_at: string | null
+          id: number
+          movement_type: string
+          notes: string | null
+          product_id: number | null
+          quantity: number
+          reference_id: string | null
+          reference_type: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          movement_type: string
+          notes?: string | null
+          product_id?: number | null
+          quantity: number
+          reference_id?: string | null
+          reference_type?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          movement_type?: string
+          notes?: string | null
+          product_id?: number | null
+          quantity?: number
+          reference_id?: string | null
+          reference_type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { user_id: string }
+        Returns: Database["public"]["Enums"]["user_role"]
+      }
     }
     Enums: {
-      [_ in never]: never
+      payment_method: "cash" | "card" | "qris" | "bank_transfer" | "e_wallet"
+      sale_status: "completed" | "cancelled" | "returned"
+      user_role: "owner" | "kasir"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -231,6 +487,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      payment_method: ["cash", "card", "qris", "bank_transfer", "e_wallet"],
+      sale_status: ["completed", "cancelled", "returned"],
+      user_role: ["owner", "kasir"],
+    },
   },
 } as const
