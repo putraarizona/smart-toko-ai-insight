@@ -131,7 +131,7 @@ const StokModule = () => {
         max_stock: '',
         avg_sales: '',
         last_update: new Date().toISOString().split('T')[0],
-        status: 'good'
+      status: 'good'
       });
       setError(null);
     } catch (err) {
@@ -617,7 +617,7 @@ const StokModule = () => {
                   <p className="text-base">{selectedProduct.last_update}</p>
                 </div>
               </div>
-            </div>
+          </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
@@ -692,7 +692,7 @@ const StokModule = () => {
                     Stok minimum harus lebih dari 0
                   </p>
                 )}
-              </div>
+          </div>
               <div className="space-y-2">
                 <Label htmlFor="update_max_stock">Stok Maksimum</Label>
                 <Input
@@ -726,7 +726,7 @@ const StokModule = () => {
             {error && (
               <div className="text-sm text-red-500 mt-2">
                 {error}
-              </div>
+          </div>
             )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowUpdateDialog(false)}>

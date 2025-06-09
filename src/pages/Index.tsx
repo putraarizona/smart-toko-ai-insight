@@ -78,9 +78,9 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex w-full">
+    <div className="min-h-screen w-screen bg-gray-50 flex">
       <Sidebar activeModule={activeModule} onModuleChange={setActiveModule} />
-      <main className="flex-1 overflow-y-auto ml-64">
+      <main className="flex-1 ml-64 h-screen overflow-y-auto">
         {renderActiveModule()}
       </main>
     </div>

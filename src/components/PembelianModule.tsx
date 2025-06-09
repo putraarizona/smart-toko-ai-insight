@@ -452,36 +452,36 @@ const PembelianModule = () => {
                     name="no_pesanan"
                   placeholder="PO-2024-001"
                     value={formData.no_pesanan}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="marketplace_supplier">Marketplace/Supplier</Label>
-                  <Input
-                    id="marketplace_supplier"
-                    name="marketplace_supplier"
-                    placeholder="PT Baby Care Indonesia"
-                    value={formData.marketplace_supplier}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="akun">Akun</Label>
-                  <Input
-                    id="akun"
-                    name="akun"
-                    placeholder="Supplier-001"
-                    value={formData.akun}
                   onChange={handleInputChange}
                     required
-                  />
-                </div>
-                
-                <div className="space-y-2">
+                />
+              </div>
+              
+              <div className="space-y-2">
+                  <Label htmlFor="marketplace_supplier">Marketplace/Supplier</Label>
+                <Input
+                    id="marketplace_supplier"
+                    name="marketplace_supplier"
+                  placeholder="PT Baby Care Indonesia"
+                    value={formData.marketplace_supplier}
+                  onChange={handleInputChange}
+                    required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="akun">Akun</Label>
+                <Input
+                  id="akun"
+                  name="akun"
+                  placeholder="Supplier-001"
+                  value={formData.akun}
+                  onChange={handleInputChange}
+                    required
+                />
+              </div>
+              
+              <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
                   <select
                     id="status"
@@ -546,36 +546,36 @@ const PembelianModule = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="qty">Jumlah</Label>
-                    <Input
-                      id="qty"
-                      name="qty"
-                      type="number"
+                <Input
+                  id="qty"
+                  name="qty"
+                  type="number"
                       value={currentDetail.qty || ''}
                       onChange={handleDetailChange}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
+                />
+              </div>
+              
+              <div className="space-y-2">
                     <Label htmlFor="harga_per_unit">Harga Per Unit</Label>
-                    <Input
+                <Input
                       id="harga_per_unit"
                       name="harga_per_unit"
-                      type="number"
+                  type="number"
                       value={currentDetail.harga_per_unit || ''}
                       onChange={handleDetailChange}
-                    />
-                  </div>
-
+                />
+              </div>
+              
                   <div className="space-y-2 md:col-span-2 lg:col-span-1">
                     <Label>Total</Label>
-                    <Input
+                <Input
                       value={formatCurrency(currentDetail.total_harga)}
-                      readOnly
-                      className="bg-gray-50"
-                    />
-                  </div>
-                </div>
-
+                  readOnly
+                  className="bg-gray-50"
+                />
+              </div>
+            </div>
+            
                 <div className="flex items-end">
                   <Button
                     type="button"
@@ -584,7 +584,7 @@ const PembelianModule = () => {
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Tambah Barang
-                  </Button>
+              </Button>
                 </div>
 
                 {purchaseDetails.length > 0 && (
@@ -609,7 +609,7 @@ const PembelianModule = () => {
                             <TableCell>{formatCurrency(detail.harga_per_unit)}</TableCell>
                             <TableCell>{formatCurrency(detail.total_harga)}</TableCell>
                             <TableCell>
-                              <Button
+              <Button 
                                 type="button"
                                 variant="ghost"
                                 size="sm"
@@ -634,8 +634,8 @@ const PembelianModule = () => {
                 )}
                 <Button type="submit" disabled={purchaseDetails.length === 0}>
                   {editMode ? 'Simpan Perubahan' : 'Simpan'}
-                </Button>
-              </div>
+              </Button>
+            </div>
             </form>
           </CardContent>
         </Card>
@@ -676,8 +676,8 @@ const PembelianModule = () => {
                   <Label>Total Harga</Label>
                   <p>{formatCurrency(selectedPurchase.total_harga)}</p>
                 </div>
-              </div>
-              
+            </div>
+            
               <div className="mt-4">
                 <h3 className="font-medium mb-2">Detail Barang</h3>
                 <Table>
@@ -754,8 +754,8 @@ const PembelianModule = () => {
                     <TableCell>
                   <Badge className={getStatusColor(purchase.status)}>
                     {purchase.status.charAt(0).toUpperCase() + purchase.status.slice(1)}
-                  </Badge>
-                </TableCell>
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                   <div className="flex space-x-2">
                     <Button variant="ghost" size="sm" onClick={() => handleView(purchase)}>
