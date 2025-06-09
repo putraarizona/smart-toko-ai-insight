@@ -271,6 +271,27 @@ const PembelianModule = () => {
     }
   }
 
+  async function updateProductWACOnCompleted(details) {
+    for (const detail of details) {
+      const { data: product, error } = await supabase
+        .from('products')
+        .select('current_stock, wac_harga_beli')
+        .eq('id', detail.product_id)
+        .single();
+      if (error || !product) continue;
+      const stokLama = product.current_stock || 0;
+      const wacLama = product.wac_harga_beli || 0;
+      const qtyBeli = detail.qty || 0;
+      const hargaBeli = detail.harga_per_unit || 0;
+      const stokBaru = stokLama + qtyBeli;
+      const wacBaru = stokBaru > 0 ? ((stokLama * wacLama) + (qtyBeli * hargaBeli)) / stokBaru : hargaBeli;
+      await supabase
+        .from('products')
+        .update({ wac_harga_beli: wacBaru })
+        .eq('id', detail.product_id);
+    }
+  }
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (purchaseDetails.length === 0) {
@@ -292,6 +313,7 @@ const PembelianModule = () => {
         await updatePurchase(editPurchaseId, updatedPurchase, purchaseDetails);
         if (prevStatus !== 'completed' && formData.status === 'completed') {
           await updateProductStockOnCompleted(purchaseDetails);
+          await updateProductWACOnCompleted(purchaseDetails);
         }
         setEditMode(false);
         setEditPurchaseId(null);
@@ -309,6 +331,7 @@ const PembelianModule = () => {
         await createPurchase(newPurchase, purchaseDetails);
         if (formData.status === 'completed') {
           await updateProductStockOnCompleted(purchaseDetails);
+          await updateProductWACOnCompleted(purchaseDetails);
         }
       }
       await loadPurchases();

@@ -18,9 +18,11 @@ export type Database = {
           current_stock: number
           min_stock: number
           max_stock: number
-          avg_sales: number
+          avg_sales?: number | null
           last_update: string
           status: 'critical' | 'low' | 'good' | 'overstock'
+          harga_jual: number
+          wac_harga_beli: number
           created_at: string
           updated_at: string
         }
@@ -31,9 +33,11 @@ export type Database = {
           current_stock: number
           min_stock: number
           max_stock: number
-          avg_sales: number
+          avg_sales?: number | null
           last_update: string
           status: 'critical' | 'low' | 'good' | 'overstock'
+          harga_jual?: number
+          wac_harga_beli?: number
         }
         Update: {
           code?: string
@@ -42,9 +46,11 @@ export type Database = {
           current_stock?: number
           min_stock?: number
           max_stock?: number
-          avg_sales?: number
+          avg_sales?: number | null
           last_update?: string
           status?: 'critical' | 'low' | 'good' | 'overstock'
+          harga_jual?: number
+          wac_harga_beli?: number
         }
       }
       purchases: {

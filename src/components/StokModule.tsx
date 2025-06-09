@@ -57,7 +57,7 @@ const StokModule = () => {
     current_stock: '',
     min_stock: '',
     max_stock: '',
-    avg_sales: '',
+    harga_jual: '',
     last_update: new Date().toISOString().split('T')[0],
     status: 'good' as Product['status']
   });
@@ -103,7 +103,7 @@ const StokModule = () => {
       const currentStock = parseInt(formData.current_stock) || 0;
       const minStock = parseInt(formData.min_stock) || 0;
       const maxStock = parseInt(formData.max_stock) || 0;
-      const avgSales = parseFloat(formData.avg_sales) || 0;
+      const hargaJual = parseFloat(formData.harga_jual) || 0;
 
       if (!validateMaxStock(minStock, maxStock)) {
         setError('Stok maksimum harus lebih besar atau sama dengan stok minimum + 4');
@@ -115,7 +115,7 @@ const StokModule = () => {
         current_stock: currentStock,
         min_stock: minStock,
         max_stock: maxStock,
-        avg_sales: avgSales,
+        harga_jual: hargaJual,
         status: getStockStatus(currentStock, minStock, maxStock)
       };
 
@@ -129,9 +129,9 @@ const StokModule = () => {
         current_stock: '',
         min_stock: '',
         max_stock: '',
-        avg_sales: '',
+        harga_jual: '',
         last_update: new Date().toISOString().split('T')[0],
-      status: 'good'
+        status: 'good'
       });
       setError(null);
     } catch (err) {
@@ -148,7 +148,7 @@ const StokModule = () => {
       const currentStock = parseInt(formData.current_stock) || 0;
       const minStock = parseInt(formData.min_stock) || 0;
       const maxStock = parseInt(formData.max_stock) || 0;
-      const avgSales = parseFloat(formData.avg_sales) || 0;
+      const hargaJual = parseFloat(formData.harga_jual) || 0;
 
       if (!validateMaxStock(minStock, maxStock)) {
         setError('Stok maksimum harus lebih besar atau sama dengan stok minimum + 4');
@@ -160,7 +160,7 @@ const StokModule = () => {
         current_stock: currentStock,
         min_stock: minStock,
         max_stock: maxStock,
-        avg_sales: avgSales,
+        harga_jual: hargaJual,
         status: getStockStatus(currentStock, minStock, maxStock)
       };
 
@@ -232,7 +232,7 @@ const StokModule = () => {
       current_stock: product.current_stock.toString(),
       min_stock: product.min_stock.toString(),
       max_stock: product.max_stock.toString(),
-      avg_sales: product.avg_sales.toString(),
+      harga_jual: product.harga_jual?.toString() || '',
       last_update: product.last_update,
       status: product.status
     });
@@ -377,13 +377,12 @@ const StokModule = () => {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="avg_sales">Rata-rata Penjualan</Label>
+                  <Label htmlFor="harga_jual">Harga Jual</Label>
                   <Input
-                    id="avg_sales"
-                    name="avg_sales"
+                    id="harga_jual"
+                    name="harga_jual"
                     type="number"
-                    step="0.1"
-                    value={formData.avg_sales}
+                    value={formData.harga_jual}
                     onChange={handleInputChange}
                     required
                   />
@@ -521,8 +520,8 @@ const StokModule = () => {
             <div className="space-y-4">
               {filteredData.map((item) => (
                 <div key={item.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                  <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-center">
-                    <div className="md:col-span-2">
+                  <div className="grid grid-cols-1 md:grid-cols-8 gap-4 items-center">
+                    <div className="md:col-span-3">
                       <div className="flex items-center space-x-2">
                         {getStatusIcon(item.status)}
                         <div>
@@ -547,7 +546,12 @@ const StokModule = () => {
                       <Badge className={getStatusColor(item.status)}>
                         {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                       </Badge>
-                      <p className="text-xs text-gray-600 mt-1">{item.avg_sales}/hari</p>
+                      <p className="text-xs text-gray-600 mt-1">{item.harga_jual ? `Rp${item.harga_jual.toLocaleString('id-ID')}` : '-'}</p>
+                    </div>
+                    
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600">WAC Beli</p>
+                      <p className="text-base font-semibold text-blue-700">{item.wac_harga_beli ? `Rp${Math.floor(item.wac_harga_beli).toLocaleString('id-ID')}` : '-'}</p>
                     </div>
                     
                     <div className="flex space-x-2">
@@ -609,8 +613,12 @@ const StokModule = () => {
                   <p className="text-base">{selectedProduct.max_stock}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Rata-rata Penjualan</p>
-                  <p className="text-base">{selectedProduct.avg_sales}/hari</p>
+                  <p className="text-sm font-medium text-gray-500">Harga Jual</p>
+                  <p className="text-base">{selectedProduct.harga_jual ? `Rp${selectedProduct.harga_jual.toLocaleString('id-ID')}` : '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">WAC Beli</p>
+                  <p className="text-base font-semibold text-blue-700">{selectedProduct.wac_harga_beli ? `Rp${Math.floor(selectedProduct.wac_harga_beli).toLocaleString('id-ID')}` : '-'}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Terakhir Update</p>
@@ -692,7 +700,7 @@ const StokModule = () => {
                     Stok minimum harus lebih dari 0
                   </p>
                 )}
-          </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="update_max_stock">Stok Maksimum</Label>
                 <Input
@@ -711,13 +719,12 @@ const StokModule = () => {
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="update_avg_sales">Rata-rata Penjualan</Label>
+                <Label htmlFor="update_harga_jual">Harga Jual</Label>
                 <Input
-                  id="update_avg_sales"
-                  name="avg_sales"
+                  id="update_harga_jual"
+                  name="harga_jual"
                   type="number"
-                  step="0.1"
-                  value={formData.avg_sales}
+                  value={formData.harga_jual}
                   onChange={handleInputChange}
                   required
                 />
@@ -726,7 +733,7 @@ const StokModule = () => {
             {error && (
               <div className="text-sm text-red-500 mt-2">
                 {error}
-          </div>
+              </div>
             )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowUpdateDialog(false)}>
