@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getProducts, addProduct, updateProduct, deleteProduct } from '@/integrations/supabase/db';
+import { getProducts, createProduct, updateProduct, deleteProduct } from '@/integrations/supabase/db';
 import { toast } from 'sonner';
 
 const StokModule = () => {
@@ -75,7 +74,7 @@ const StokModule = () => {
         await updateProduct(editingProduct.id, productData);
         toast.success('Produk berhasil diperbarui');
       } else {
-        await addProduct(productData);
+        await createProduct(productData);
         toast.success('Produk berhasil ditambahkan');
       }
       
