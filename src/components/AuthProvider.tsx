@@ -62,37 +62,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setRole(null);
     setProfile(null);
-    setLoading(false);
   };
 
   // Function to load user data with better error handling
   const loadUserData = async () => {
     try {
-      setLoading(true);
+      console.log('Loading user data...');
       
-      // Check if we have a valid session first
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError || !session?.user) {
-        console.log('No valid session found, resetting auth state');
-        resetAuthState();
-        return;
-      }
-
       const [userRole, userProfile] = await Promise.all([
         getCurrentUserRole(),
         getCurrentUserProfile()
       ]);
       
+      console.log('User role:', userRole, 'User profile:', userProfile);
       setRole(userRole);
       setProfile(userProfile);
     } catch (error) {
       console.error('Error loading user data:', error);
-      // If there's an error loading user data, it might be due to invalid session
-      // Reset the auth state to prevent getting stuck
-      resetAuthState();
-    } finally {
-      setLoading(false);
+      // Don't reset auth state here, just log the error
     }
   };
 
@@ -102,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Get initial session
     const initializeAuth = async () => {
       try {
+        console.log('Initializing auth...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (!mounted) return;
@@ -110,21 +98,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Session error:', error);
           cleanupAuthState();
           resetAuthState();
+          setLoading(false);
           return;
         }
 
+        console.log('Initial session:', !!session?.user);
         setUser(session?.user ?? null);
         
         if (session?.user) {
           await loadUserData();
-        } else {
-          setLoading(false);
         }
+        
+        setLoading(false);
       } catch (error) {
         console.error('Error initializing auth:', error);
         if (mounted) {
           cleanupAuthState();
           resetAuthState();
+          setLoading(false);
         }
       }
     };
@@ -135,31 +126,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      console.log('Auth state changed:', event, session?.user?.id);
+      console.log('Auth state changed:', event, !!session?.user);
       
       setUser(session?.user ?? null);
       
       if (event === 'SIGNED_IN' && session?.user) {
-        // Defer data fetching to prevent deadlocks
-        setTimeout(() => {
+        // Load user data after successful login
+        setTimeout(async () => {
           if (mounted) {
-            loadUserData();
+            await loadUserData();
+            setLoading(false);
           }
-        }, 0);
-      } else if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' && !session) {
+        }, 100);
+      } else if (event === 'SIGNED_OUT') {
         if (mounted) {
           resetAuthState();
+          setLoading(false);
         }
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        // Session refreshed successfully, reload user data
-        setTimeout(() => {
-          if (mounted) {
-            loadUserData();
+      } else if (event === 'TOKEN_REFRESHED') {
+        if (session?.user && mounted) {
+          // Session refreshed successfully, reload user data if needed
+          if (!role || !profile) {
+            setTimeout(async () => {
+              if (mounted) {
+                await loadUserData();
+              }
+            }, 100);
           }
-        }, 0);
+        } else if (!session && mounted) {
+          resetAuthState();
+          setLoading(false);
+        }
       } else {
         if (mounted) {
-          resetAuthState();
+          setLoading(false);
         }
       }
     });
@@ -173,26 +173,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
+      console.log('Attempting sign in...');
       
-      // Clean up existing state first
-      cleanupAuthState();
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
       
-      // Attempt global sign out first
-      try {
-        await supabase.auth.signOut({ scope: 'global' });
-      } catch (err) {
-        // Continue even if this fails
-        console.log('Global signout failed, continuing with login');
+      if (error) {
+        console.error('Sign in error:', error);
+        throw error;
       }
       
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      
-      if (error) throw error;
-      
-      if (data.user) {
-        // Force page reload for clean state
-        window.location.href = '/';
-      }
+      console.log('Sign in successful:', !!data.user);
+      // Don't redirect here, let the auth state change handle it
     } catch (error) {
       setLoading(false);
       throw error;
@@ -202,9 +196,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, metadata?: any) => {
     try {
       setLoading(true);
-      
-      // Clean up existing state first
-      cleanupAuthState();
       
       const { error } = await supabase.auth.signUp({
         email,
@@ -223,26 +214,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      // Clean up auth state first
+      console.log('Signing out...');
+      
+      // Reset state first
+      resetAuthState();
+      
+      // Clean up auth state
       cleanupAuthState();
       
-      // Attempt global sign out
-      try {
-        await supabase.auth.signOut({ scope: 'global' });
-      } catch (err) {
-        // Ignore errors during signout
-        console.log('Signout error (ignored):', err);
-      }
+      // Sign out from Supabase
+      await supabase.auth.signOut();
       
-      // Reset state
-      resetAuthState();
-      
-      // Force page reload for clean state
-      window.location.href = '/';
+      setLoading(false);
     } catch (error) {
-      // Even if signout fails, reset local state and redirect
+      console.error('Sign out error:', error);
+      // Even if signout fails, reset local state
       resetAuthState();
-      window.location.href = '/';
+      setLoading(false);
     }
   };
 
