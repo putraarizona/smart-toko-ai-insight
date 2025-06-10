@@ -29,28 +29,6 @@ export const useAuth = () => {
   return context;
 };
 
-// Cleanup function untuk auth state
-const cleanupAuthState = () => {
-  try {
-    // Remove standard auth tokens
-    localStorage.removeItem('supabase.auth.token');
-    // Remove all Supabase auth keys
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
-        localStorage.removeItem(key);
-      }
-    });
-    // Remove from sessionStorage if in use
-    Object.keys(sessionStorage || {}).forEach((key) => {
-      if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
-        sessionStorage.removeItem(key);
-      }
-    });
-  } catch (error) {
-    console.error('Error cleaning up auth state:', error);
-  }
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<UserRole | null>(null);
@@ -64,17 +42,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(null);
   };
 
-  // Function to load user data with better error handling
-  const loadUserData = async () => {
+  // Function to load user data
+  const loadUserData = async (userId: string) => {
     try {
-      console.log('Loading user data...');
+      console.log('Loading user data for:', userId);
       
       const [userRole, userProfile] = await Promise.all([
         getCurrentUserRole(),
         getCurrentUserProfile()
       ]);
       
-      console.log('User role:', userRole, 'User profile:', userProfile);
+      console.log('Loaded role:', userRole, 'profile:', userProfile);
       setRole(userRole);
       setProfile(userProfile);
     } catch (error) {
@@ -96,24 +74,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error) {
           console.error('Session error:', error);
-          cleanupAuthState();
           resetAuthState();
           setLoading(false);
           return;
         }
 
         console.log('Initial session:', !!session?.user);
-        setUser(session?.user ?? null);
         
         if (session?.user) {
-          await loadUserData();
+          setUser(session.user);
+          await loadUserData(session.user.id);
         }
         
         setLoading(false);
       } catch (error) {
         console.error('Error initializing auth:', error);
         if (mounted) {
-          cleanupAuthState();
           resetAuthState();
           setLoading(false);
         }
@@ -128,39 +104,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('Auth state changed:', event, !!session?.user);
       
-      setUser(session?.user ?? null);
-      
       if (event === 'SIGNED_IN' && session?.user) {
-        // Load user data after successful login
-        setTimeout(async () => {
-          if (mounted) {
-            await loadUserData();
-            setLoading(false);
-          }
-        }, 100);
+        setUser(session.user);
+        // Load user data after successful sign in
+        await loadUserData(session.user.id);
+        setLoading(false);
       } else if (event === 'SIGNED_OUT') {
-        if (mounted) {
-          resetAuthState();
-          setLoading(false);
+        resetAuthState();
+        setLoading(false);
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        setUser(session.user);
+        // If we don't have role/profile data, reload it
+        if (!role || !profile) {
+          await loadUserData(session.user.id);
         }
-      } else if (event === 'TOKEN_REFRESHED') {
-        if (session?.user && mounted) {
-          // Session refreshed successfully, reload user data if needed
-          if (!role || !profile) {
-            setTimeout(async () => {
-              if (mounted) {
-                await loadUserData();
-              }
-            }, 100);
-          }
-        } else if (!session && mounted) {
-          resetAuthState();
-          setLoading(false);
-        }
-      } else {
-        if (mounted) {
-          setLoading(false);
-        }
+        setLoading(false);
+      } else if (!session) {
+        resetAuthState();
+        setLoading(false);
       }
     });
 
@@ -168,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [role, profile]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -182,11 +143,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) {
         console.error('Sign in error:', error);
+        setLoading(false);
         throw error;
       }
       
       console.log('Sign in successful:', !!data.user);
-      // Don't redirect here, let the auth state change handle it
+      // Auth state change will handle the rest
     } catch (error) {
       setLoading(false);
       throw error;
@@ -205,7 +167,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        setLoading(false);
+        throw error;
+      }
     } catch (error) {
       setLoading(false);
       throw error;
@@ -215,20 +180,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       console.log('Signing out...');
-      
-      // Reset state first
       resetAuthState();
-      
-      // Clean up auth state
-      cleanupAuthState();
-      
-      // Sign out from Supabase
       await supabase.auth.signOut();
-      
       setLoading(false);
     } catch (error) {
       console.error('Sign out error:', error);
-      // Even if signout fails, reset local state
       resetAuthState();
       setLoading(false);
     }

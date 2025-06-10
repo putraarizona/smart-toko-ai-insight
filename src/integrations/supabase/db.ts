@@ -234,26 +234,46 @@ export async function createSale(
   sale: Database['public']['Tables']['sales']['Insert'],
   details: Array<Omit<Database['public']['Tables']['sales_details']['Insert'], 'sale_id'>>
 ) {
-  const { data: saleData, error: saleError } = await supabase
-    .from('sales')
-    .insert(sale)
-    .select()
-    .single();
+  try {
+    console.log('Creating sale with data:', sale, details);
+    
+    const { data: saleData, error: saleError } = await supabase
+      .from('sales')
+      .insert(sale)
+      .select()
+      .single();
 
-  if (saleError) throw saleError;
+    if (saleError) {
+      console.error('Sale creation error:', saleError);
+      throw saleError;
+    }
 
-  const salesDetails = details.map(detail => ({
-    ...detail,
-    sale_id: saleData.id
-  }));
+    console.log('Sale created successfully:', saleData);
 
-  const { error: detailsError } = await supabase
-    .from('sales_details')
-    .insert(salesDetails);
+    const salesDetails = details.map(detail => ({
+      ...detail,
+      sale_id: saleData.id
+    }));
 
-  if (detailsError) throw detailsError;
+    console.log('Inserting sale details:', salesDetails);
 
-  return saleData;
+    const { error: detailsError } = await supabase
+      .from('sales_details')
+      .insert(salesDetails);
+
+    if (detailsError) {
+      console.error('Sale details error:', detailsError);
+      // If details insertion fails, we should delete the sale to maintain consistency
+      await supabase.from('sales').delete().eq('id', saleData.id);
+      throw detailsError;
+    }
+
+    console.log('Sale and details created successfully');
+    return saleData;
+  } catch (error) {
+    console.error('Error in createSale:', error);
+    throw error;
+  }
 }
 
 export async function updateSaleStatus(id: number, status: Database['public']['Tables']['sales']['Row']['status']) {

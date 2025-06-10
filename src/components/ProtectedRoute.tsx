@@ -12,17 +12,44 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
   const { user, role, loading } = useAuth();
   const [timeoutReached, setTimeoutReached] = useState(false);
 
-  // Set timeout untuk loading state
+  // Set timeout for loading state - reduced to 5 seconds
   useEffect(() => {
     const timer = setTimeout(() => {
       setTimeoutReached(true);
-    }, 10000); // 10 detik timeout
+    }, 5000); // Reduced from 10 seconds
 
     return () => clearTimeout(timer);
   }, []);
 
-  // Jika loading terlalu lama, tampilkan error dan option untuk refresh
-  if (loading && timeoutReached) {
+  // If user exists but loading is taking too long, show timeout with better options
+  if (loading && timeoutReached && user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="text-blue-600 mb-4">
+            <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-4">Memuat Data Pengguna</h1>
+          <p className="text-gray-600 mb-6">
+            Sistem sedang memuat data Anda. Jika terlalu lama, coba refresh halaman.
+          </p>
+          <div className="space-y-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Refresh Halaman
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If no user and loading timeout, show connection error
+  if (loading && timeoutReached && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
@@ -49,7 +76,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
             </button>
             <button
               onClick={() => {
-                // Clear all auth state and redirect to login
                 localStorage.clear();
                 sessionStorage.clear();
                 window.location.href = '/';
@@ -64,27 +90,25 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
     );
   }
 
+  // Normal loading state
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Memuat...</p>
-          <p className="mt-2 text-sm text-gray-500">
-            Jika loading terlalu lama, silakan refresh halaman
-          </p>
         </div>
       </div>
     );
   }
 
-  // Jika user belum login, tampilkan form login
+  // If user not logged in, show login form
   if (!user) {
     return <LoginForm />;
   }
 
-  // Jika user sudah login tapi role belum dimuat dan sudah lewat beberapa detik
-  if (user && !role && !loading) {
+  // If user logged in but role not loaded, wait a bit more
+  if (user && !role) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -95,6 +119,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
     );
   }
 
+  // Check role access
   if (requiredRole && role !== requiredRole && role !== 'owner') {
     return (
       <div className="min-h-screen flex items-center justify-center">
