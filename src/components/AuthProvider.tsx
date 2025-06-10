@@ -106,9 +106,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
-        // Load user data after successful sign in
-        await loadUserData(session.user.id);
-        setLoading(false);
+        // Use setTimeout to prevent deadlock
+        setTimeout(async () => {
+          try {
+            await loadUserData(session.user.id);
+            setLoading(false);
+          } catch (error) {
+            console.error('Error loading user data after sign in:', error);
+            setLoading(false);
+          }
+        }, 100);
       } else if (event === 'SIGNED_OUT') {
         resetAuthState();
         setLoading(false);
@@ -116,7 +123,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session.user);
         // If we don't have role/profile data, reload it
         if (!role || !profile) {
-          await loadUserData(session.user.id);
+          setTimeout(async () => {
+            try {
+              await loadUserData(session.user.id);
+            } catch (error) {
+              console.error('Error reloading user data:', error);
+            }
+          }, 100);
         }
         setLoading(false);
       } else if (!session) {
@@ -129,7 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [role, profile]);
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
