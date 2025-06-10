@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,11 +15,21 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { getProducts, getSales } from '@/integrations/supabase/db';
 import { useAuth } from './AuthProvider';
+import type { Database } from '@/integrations/supabase/types';
+
+type Product = Database['public']['Tables']['products']['Row'];
+type Sale = Database['public']['Tables']['sales']['Row'];
+
+interface ChartDataPoint {
+  name: string;
+  penjualan: number;
+  margin: number;
+}
 
 const Dashboard = () => {
   const { isOwner, profile } = useAuth();
-  const [products, setProducts] = useState([]);
-  const [sales, setSales] = useState([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,6 +61,11 @@ const Dashboard = () => {
   const lowStockProducts = products.filter(p => p.current_stock <= p.min_stock).length;
   const criticalStockProducts = products.filter(p => p.current_stock < p.min_stock).length;
   
+  // Calculate total stock value
+  const totalStockValue = products.reduce((sum, product) => {
+    return sum + (product.current_stock * (product.wac_harga_beli || 0));
+  }, 0);
+  
   const todaySales = sales.filter(s => {
     const saleDate = new Date(s.sale_date);
     const today = new Date();
@@ -63,7 +77,7 @@ const Dashboard = () => {
   const transactionCount = todaySales.length;
 
   // Sample chart data (last 7 days)
-  const chartData = Array.from({ length: 7 }, (_, i) => {
+  const chartData: ChartDataPoint[] = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() - (6 - i));
     const dayName = date.toLocaleDateString('id-ID', { weekday: 'short' });
@@ -103,10 +117,12 @@ const Dashboard = () => {
       stock: product.current_stock
     }));
 
-  const formatCurrency = (amount) => {
+  const formatCurrency = (amount: number, decimals: number = 0) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
-      currency: 'IDR'
+      currency: 'IDR',
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
     }).format(amount);
   };
 
@@ -132,14 +148,14 @@ const Dashboard = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Penjualan Hari Ini</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalSalesToday)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalSalesToday, 0)}</div>
             <p className="text-xs text-muted-foreground">
               {transactionCount} transaksi
             </p>
@@ -152,9 +168,22 @@ const Dashboard = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalMarginToday)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalMarginToday, 0)}</div>
             <p className="text-xs text-muted-foreground">
               Keuntungan bersih
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Nilai Stok</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalStockValue, 0)}</div>
+            <p className="text-xs text-muted-foreground">
+              Nilai inventori saat ini
             </p>
           </CardContent>
         </Card>
@@ -203,7 +232,7 @@ const Dashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Tooltip formatter={(value: any) => formatCurrency(Number(value), 0)} />
                 <Bar dataKey="penjualan" fill="#3b82f6" />
               </BarChart>
             </ResponsiveContainer>
@@ -221,7 +250,7 @@ const Dashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Tooltip formatter={(value: any) => formatCurrency(Number(value), 0)} />
                 <Line type="monotone" dataKey="margin" stroke="#10b981" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -307,7 +336,7 @@ const Dashboard = () => {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">{formatCurrency(sale.total_amount)}</p>
+                      <p className="font-bold">{formatCurrency(sale.total_amount, 0)}</p>
                       <Badge className={
                         sale.status === 'completed' ? 'bg-green-100 text-green-800' :
                         sale.status === 'cancelled' ? 'bg-red-100 text-red-800' : 
@@ -342,7 +371,7 @@ const Dashboard = () => {
                 <h4 className="font-medium text-gray-900 mb-2">💰 Analisis Margin</h4>
                 <p className="text-sm text-gray-700">
                   {totalMarginToday > 0 
-                    ? `Margin hari ini ${formatCurrency(totalMarginToday)}. ${totalMarginToday > 500000 ? 'Performa sangat baik!' : 'Ada ruang untuk peningkatan.'}`
+                    ? `Margin hari ini ${formatCurrency(totalMarginToday, 0)}. ${totalMarginToday > 500000 ? 'Performa sangat baik!' : 'Ada ruang untuk peningkatan.'}`
                     : 'Belum ada penjualan hari ini. Saatnya mulai promosi!'
                   }
                 </p>
