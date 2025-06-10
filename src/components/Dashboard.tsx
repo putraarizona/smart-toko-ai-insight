@@ -10,9 +10,10 @@ import {
   ShoppingCart,
   Users,
   AlertTriangle,
-  Calendar
+  Calendar,
+  Star
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { getProducts, getSales } from '@/integrations/supabase/db';
 import { useAuth } from './AuthProvider';
 
@@ -78,6 +79,29 @@ const Dashboard = () => {
       margin: daySales.reduce((sum, sale) => sum + sale.total_margin, 0)
     };
   });
+
+  // Category distribution data
+  const categoryData = products.reduce((acc, product) => {
+    const category = product.category || 'Others';
+    acc[category] = (acc[category] || 0) + 1;
+    return acc;
+  }, {});
+
+  const categoryPieData = Object.entries(categoryData).map(([name, value], index) => ({
+    name,
+    value,
+    color: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#6B7280', '#EF4444', '#F59E0B'][index % 7]
+  }));
+
+  // Top selling products (mock data for now - you can enhance this with actual sales details)
+  const topProducts = products
+    .sort((a, b) => (b.current_stock < b.min_stock ? 1 : 0) - (a.current_stock < a.min_stock ? 1 : 0))
+    .slice(0, 4)
+    .map(product => ({
+      name: product.code,
+      sales: Math.floor(Math.random() * 200) + 50, // Mock sales data
+      stock: product.current_stock
+    }));
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('id-ID', {
@@ -205,38 +229,137 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Recent Transactions (for Owner) or Quick Actions (for Kasir) */}
-      {isOwner ? (
-        <Card>
+      {/* New sections from old version */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Category Distribution */}
+        <Card className="smart-card">
           <CardHeader>
-            <CardTitle>Transaksi Terbaru</CardTitle>
-            <CardDescription>5 transaksi penjualan terakhir</CardDescription>
+            <CardTitle className="flex items-center space-x-2">
+              <Package className="w-5 h-5 text-smart-green" />
+              <span>Distribusi Kategori</span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {sales.slice(0, 5).map((sale) => (
-                <div key={sale.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{sale.sale_number}</p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(sale.sale_date).toLocaleDateString('id-ID')} - {sale.cashier_name}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold">{formatCurrency(sale.total_amount)}</p>
-                    <Badge className={
-                      sale.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      sale.status === 'cancelled' ? 'bg-red-100 text-red-800' : 
-                      'bg-yellow-100 text-yellow-800'
-                    }>
-                      {sale.status}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={categoryPieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  dataKey="value"
+                  label={({ name, value }) => `${name}: ${value}`}
+                >
+                  {categoryPieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        {/* Top Products */}
+        <Card className="smart-card">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Star className="w-5 h-5 text-smart-orange" />
+              <span>Produk Terlaris</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {topProducts.map((product, index) => (
+              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="font-medium text-gray-900">{product.name}</p>
+                  <p className="text-sm text-gray-600">{product.sales} terjual</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium text-gray-900">Stok: {product.stock}</p>
+                  <p className={`text-sm ${product.stock < 20 ? 'text-orange-600' : 'text-green-600'}`}>
+                    {product.stock < 20 ? 'Perlu Restock' : 'Aman'}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* AI Insights or Recent Transactions */}
+      {isOwner ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Transaksi Terbaru</CardTitle>
+              <CardDescription>5 transaksi penjualan terakhir</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {sales.slice(0, 5).map((sale) => (
+                  <div key={sale.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{sale.sale_number}</p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(sale.sale_date).toLocaleDateString('id-ID')} - {sale.cashier_name}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold">{formatCurrency(sale.total_amount)}</p>
+                      <Badge className={
+                        sale.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        sale.status === 'cancelled' ? 'bg-red-100 text-red-800' : 
+                        'bg-yellow-100 text-yellow-800'
+                      }>
+                        {sale.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* AI Insights */}
+          <Card className="smart-card">
+            <CardHeader>
+              <CardTitle>AI Insights</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border-l-4 border-blue-500">
+                <h4 className="font-medium text-gray-900 mb-2">📈 Rekomendasi Hari Ini</h4>
+                <p className="text-sm text-gray-700">
+                  {lowStockProducts > 0 
+                    ? `${lowStockProducts} produk memiliki stok menipis. Pertimbangkan untuk restock dalam 2-3 hari.`
+                    : 'Semua produk memiliki stok yang aman. Pertahankan performa ini!'
+                  }
+                </p>
+              </div>
+              
+              <div className="p-4 bg-gradient-to-r from-green-50 to-purple-50 rounded-lg border-l-4 border-green-500">
+                <h4 className="font-medium text-gray-900 mb-2">💰 Analisis Margin</h4>
+                <p className="text-sm text-gray-700">
+                  {totalMarginToday > 0 
+                    ? `Margin hari ini ${formatCurrency(totalMarginToday)}. ${totalMarginToday > 500000 ? 'Performa sangat baik!' : 'Ada ruang untuk peningkatan.'}`
+                    : 'Belum ada penjualan hari ini. Saatnya mulai promosi!'
+                  }
+                </p>
+              </div>
+
+              <div className="p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border-l-4 border-orange-500">
+                <h4 className="font-medium text-gray-900 mb-2">⚠️ Alert</h4>
+                <p className="text-sm text-gray-700">
+                  {criticalStockProducts > 0 
+                    ? `${criticalStockProducts} produk memiliki stok kritis. Periksa modul stok untuk detail lengkap.`
+                    : 'Tidak ada produk dengan stok kritis. Manajemen inventory berjalan baik!'
+                  }
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         <Card>
           <CardHeader>

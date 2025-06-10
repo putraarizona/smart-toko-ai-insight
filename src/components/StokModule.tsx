@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 import { 
   Package, 
   Plus, 
@@ -36,7 +37,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/integrations/supabase/db';
 import type { Database } from '@/integrations/supabase/types';
-import { toast } from 'sonner';
 
 type Product = Database['public']['Tables']['products']['Row'];
 
@@ -59,7 +59,6 @@ const StokModule = () => {
     min_stock: '',
     max_stock: '',
     harga_jual: '',
-    wac_harga_beli: '',
     last_update: new Date().toISOString().split('T')[0],
     status: 'good' as Product['status']
   });
@@ -75,14 +74,14 @@ const StokModule = () => {
       // Update status for each product based on new logic
       const updatedData = data.map(product => ({
         ...product,
-        status: getStockStatus(parseInt(product.current_stock) || 0, parseInt(product.min_stock) || 0, parseInt(product.max_stock) || 0)
+        status: getStockStatus(Number(product.current_stock) || 0, Number(product.min_stock) || 0, Number(product.max_stock) || 0)
       }));
       setProducts(updatedData);
       setError(null);
     } catch (err) {
       setError('Gagal memuat data produk');
-      toast.error('Gagal memuat data produk');
       console.error('Error loading products:', err);
+      toast.error('Gagal memuat data produk');
     } finally {
       setLoading(false);
     }
@@ -107,7 +106,6 @@ const StokModule = () => {
       const minStock = parseInt(formData.min_stock) || 0;
       const maxStock = parseInt(formData.max_stock) || 0;
       const hargaJual = parseFloat(formData.harga_jual) || 0;
-      const wacHargaBeli = parseFloat(formData.wac_harga_beli) || 0;
 
       if (!validateMaxStock(minStock, maxStock)) {
         setError('Stok maksimum harus lebih besar atau sama dengan stok minimum + 4');
@@ -115,16 +113,11 @@ const StokModule = () => {
       }
 
       const newProduct = {
-        code: formData.code,
-        name: formData.name,
-        category: formData.category,
+        ...formData,
         current_stock: currentStock,
         min_stock: minStock,
         max_stock: maxStock,
         harga_jual: hargaJual,
-        wac_harga_beli: wacHargaBeli,
-        last_update: formData.last_update,
-        avg_sales: 0,
         status: getStockStatus(currentStock, minStock, maxStock)
       };
 
@@ -139,7 +132,6 @@ const StokModule = () => {
         min_stock: '',
         max_stock: '',
         harga_jual: '',
-        wac_harga_beli: '',
         last_update: new Date().toISOString().split('T')[0],
         status: 'good'
       });
@@ -147,8 +139,8 @@ const StokModule = () => {
       toast.success('Produk berhasil ditambahkan');
     } catch (err) {
       setError('Gagal menambahkan produk');
-      toast.error('Gagal menambahkan produk');
       console.error('Error creating product:', err);
+      toast.error('Gagal menambahkan produk');
     }
   };
 
@@ -161,7 +153,6 @@ const StokModule = () => {
       const minStock = parseInt(formData.min_stock) || 0;
       const maxStock = parseInt(formData.max_stock) || 0;
       const hargaJual = parseFloat(formData.harga_jual) || 0;
-      const wacHargaBeli = parseFloat(formData.wac_harga_beli) || 0;
 
       if (!validateMaxStock(minStock, maxStock)) {
         setError('Stok maksimum harus lebih besar atau sama dengan stok minimum + 4');
@@ -169,15 +160,11 @@ const StokModule = () => {
       }
 
       const updatedProduct = {
-        code: formData.code,
-        name: formData.name,
-        category: formData.category,
+        ...formData,
         current_stock: currentStock,
         min_stock: minStock,
         max_stock: maxStock,
         harga_jual: hargaJual,
-        wac_harga_beli: wacHargaBeli,
-        last_update: formData.last_update,
         status: getStockStatus(currentStock, minStock, maxStock)
       };
 
@@ -186,11 +173,11 @@ const StokModule = () => {
       setShowUpdateDialog(false);
       setSelectedProduct(null);
       setError(null);
-      toast.success('Produk berhasil diperbarui');
+      toast.success('Produk berhasil diupdate');
     } catch (err) {
       setError('Gagal mengupdate produk');
-      toast.error('Gagal mengupdate produk');
       console.error('Error updating product:', err);
+      toast.error('Gagal mengupdate produk');
     }
   };
 
@@ -205,8 +192,8 @@ const StokModule = () => {
       toast.success('Produk berhasil dihapus');
     } catch (err) {
       setError('Gagal menghapus produk');
-      toast.error('Gagal menghapus produk');
       console.error('Error deleting product:', err);
+      toast.error('Gagal menghapus produk');
     }
   };
 
@@ -231,9 +218,9 @@ const StokModule = () => {
   };
 
   const getStockStatus = (current: number, min: number, max: number): Product['status'] => {
-    // Check overstock first
+    // Cek overstock terlebih dahulu
     if (current > max) return 'overstock';
-    // Then check other statuses
+    // Kemudian cek status lainnya
     if (current < min) return 'critical';
     if (current <= min + 4) return 'low';
     return 'good';
@@ -254,7 +241,6 @@ const StokModule = () => {
       min_stock: product.min_stock.toString(),
       max_stock: product.max_stock.toString(),
       harga_jual: product.harga_jual?.toString() || '',
-      wac_harga_beli: product.wac_harga_beli?.toString() || '',
       last_update: product.last_update,
       status: product.status
     });
@@ -281,7 +267,7 @@ const StokModule = () => {
     overstock: products.filter(item => item.status === 'overstock').length,
   };
 
-  // Validation for min stock > 0 and max stock >= min + 4
+  // Validasi stok minimum > 0 dan stok maksimum >= minimum + 4
   const isMinStockValid = parseInt(formData.min_stock) > 0;
   const isMaxStockValid = validateMaxStock(parseInt(formData.min_stock), parseInt(formData.max_stock));
   const isFormValid = isMinStockValid && isMaxStockValid;
@@ -320,7 +306,6 @@ const StokModule = () => {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* ... keep existing code (form fields) */}
                 <div className="space-y-2">
                   <Label htmlFor="code">Kode Produk</Label>
                   <Input
@@ -406,17 +391,6 @@ const StokModule = () => {
                     name="harga_jual"
                     type="number"
                     value={formData.harga_jual}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wac_harga_beli">WAC Harga Beli</Label>
-                  <Input
-                    id="wac_harga_beli"
-                    name="wac_harga_beli"
-                    type="number"
-                    value={formData.wac_harga_beli}
                     onChange={handleInputChange}
                     required
                   />
@@ -585,7 +559,7 @@ const StokModule = () => {
                     
                     <div className="text-center">
                       <p className="text-sm text-gray-600">WAC Beli</p>
-                      <p className="text-base font-semibold text-blue-700">{item.wac_harga_beli ? `Rp${Math.floor(item.wac_harga_beli).toLocaleString('id-ID')}` : '-'}</p>
+                      <p className="text-base font-semibold text-blue-700">{item.wac_harga_beli ? `Rp${Math.floor(Number(item.wac_harga_beli)).toLocaleString('id-ID')}` : '-'}</p>
                     </div>
                     
                     <div className="flex space-x-2">
@@ -652,7 +626,7 @@ const StokModule = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">WAC Beli</p>
-                  <p className="text-base font-semibold text-blue-700">{selectedProduct.wac_harga_beli ? `Rp${Math.floor(selectedProduct.wac_harga_beli).toLocaleString('id-ID')}` : '-'}</p>
+                  <p className="text-base font-semibold text-blue-700">{selectedProduct.wac_harga_beli ? `Rp${Math.floor(Number(selectedProduct.wac_harga_beli)).toLocaleString('id-ID')}` : '-'}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Terakhir Update</p>
@@ -677,7 +651,6 @@ const StokModule = () => {
           </DialogHeader>
           <form onSubmit={handleUpdate} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              {/* ... keep existing code (update form fields) */}
               <div className="space-y-2">
                 <Label htmlFor="update_code">Kode Produk</Label>
                 <Input
@@ -760,17 +733,6 @@ const StokModule = () => {
                   name="harga_jual"
                   type="number"
                   value={formData.harga_jual}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="update_wac_harga_beli">WAC Harga Beli</Label>
-                <Input
-                  id="update_wac_harga_beli"
-                  name="wac_harga_beli"
-                  type="number"
-                  value={formData.wac_harga_beli}
                   onChange={handleInputChange}
                   required
                 />
