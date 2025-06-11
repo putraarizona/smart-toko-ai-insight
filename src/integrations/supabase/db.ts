@@ -100,10 +100,30 @@ export async function getPurchaseById(id: number) {
   return data;
 }
 
+export async function checkPurchaseOrderExists(no_pesanan: string) {
+  const { data, error } = await supabase
+    .from('purchases')
+    .select('id')
+    .eq('no_pesanan', no_pesanan)
+    .single();
+
+  if (error && error.code !== 'PGRST116') { // PGRST116 is the error code for no rows returned
+    throw error;
+  }
+
+  return !!data;
+}
+
 export async function createPurchase(
   purchase: Database['public']['Tables']['purchases']['Insert'],
   details: Array<Omit<Database['public']['Tables']['purchase_details']['Insert'], 'purchase_id'> & { product?: any }>
 ) {
+  // Check if purchase order number already exists
+  const exists = await checkPurchaseOrderExists(purchase.no_pesanan);
+  if (exists) {
+    throw new Error('Nomor pesanan sudah digunakan');
+  }
+
   const { data: purchaseData, error: purchaseError } = await supabase
     .from('purchases')
     .insert(purchase)

@@ -94,6 +94,7 @@ const PembelianModule = () => {
   const [editMode, setEditMode] = useState(false);
   const [editPurchaseId, setEditPurchaseId] = useState<number | null>(null);
   const [prevStatus, setPrevStatus] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState<PurchaseFormData>({
     tanggal_pemesanan: new Date().toISOString().split('T')[0],
@@ -279,15 +280,21 @@ const PembelianModule = () => {
         .eq('id', detail.product_id)
         .single();
       if (error || !product) continue;
+      
       const stokLama = product.current_stock || 0;
       const wacLama = product.wac_harga_beli || 0;
       const qtyBeli = detail.qty || 0;
       const hargaBeli = detail.harga_per_unit || 0;
-      const stokBaru = stokLama + qtyBeli;
-      const wacBaru = stokBaru > 0 ? ((stokLama * wacLama) + (qtyBeli * hargaBeli)) / stokBaru : hargaBeli;
+      
+      // Calculate new WAC
+      const totalNilaiLama = stokLama * wacLama;
+      const totalNilaiBeli = qtyBeli * hargaBeli;
+      const totalStokBaru = stokLama + qtyBeli;
+      const wacBaru = totalStokBaru > 0 ? (totalNilaiLama + totalNilaiBeli) / totalStokBaru : hargaBeli;
+      
       await supabase
         .from('products')
-        .update({ wac_harga_beli: wacBaru })
+        .update({ wac_harga_beli: Math.round(wacBaru) })
         .eq('id', detail.product_id);
     }
   }
@@ -299,6 +306,7 @@ const PembelianModule = () => {
       return;
     }
     try {
+      setIsSubmitting(true);
       const totalHarga = purchaseDetails.reduce((sum, detail) => sum + detail.total_harga, 0);
       if (editMode && editPurchaseId) {
         // Update
@@ -350,6 +358,8 @@ const PembelianModule = () => {
     } catch (err) {
       console.error('Error saving purchase:', err);
       setError(editMode ? 'Gagal memperbarui pembelian' : 'Gagal menambahkan pembelian');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -655,10 +665,10 @@ const PembelianModule = () => {
                     Batal Edit
                   </Button>
                 )}
-                <Button type="submit" disabled={purchaseDetails.length === 0}>
-                  {editMode ? 'Simpan Perubahan' : 'Simpan'}
-              </Button>
-            </div>
+                <Button type="submit" disabled={purchaseDetails.length === 0 || isSubmitting}>
+                  {isSubmitting ? 'Menyimpan...' : (editMode ? 'Simpan Perubahan' : 'Simpan')}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>

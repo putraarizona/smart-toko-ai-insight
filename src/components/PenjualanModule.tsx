@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -339,7 +338,9 @@ const PenjualanModule = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
-      currency: 'IDR'
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount);
   };
 
@@ -489,15 +490,16 @@ const PenjualanModule = () => {
                       id="unit_price"
                       name="unit_price"
                       type="number"
-                      value={currentDetail.unit_price || ''}
-                      onChange={handleDetailChange}
+                      value={Math.round(currentDetail.unit_price || 0)}
+                      readOnly
+                      className="bg-gray-50"
                     />
                   </div>
                   
                   <div className="space-y-2">
                     <Label>Total</Label>
                     <Input
-                      value={formatCurrency((currentDetail.quantity || 0) * (currentDetail.unit_price || 0))}
+                      value={formatCurrency(Math.round((currentDetail.quantity || 0) * (currentDetail.unit_price || 0)))}
                       readOnly
                       className="bg-gray-50"
                     />
@@ -582,7 +584,7 @@ const PenjualanModule = () => {
                 <div className="space-y-2">
                   <Label>Total Bayar</Label>
                   <Input
-                    value={formatCurrency(totalAmount)}
+                    value={formatCurrency(Math.round(totalAmount))}
                     readOnly
                     className="bg-gray-50 font-bold text-lg"
                   />
