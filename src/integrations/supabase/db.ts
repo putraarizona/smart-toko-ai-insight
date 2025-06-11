@@ -1,3 +1,4 @@
+
 import { supabase } from './client';
 import type { Database } from './types';
 
@@ -66,6 +67,75 @@ export async function deleteProduct(id: number) {
   if (error) throw error;
 }
 
+// Marketplace/Supplier functions
+export async function getMarketplaceSuppliers() {
+  const { data, error } = await supabase
+    .from('marketplace_suppliers')
+    .select('*')
+    .order('name');
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getSupplierAccounts(marketplaceSupplierId?: number) {
+  let query = supabase
+    .from('supplier_accounts')
+    .select('*, marketplace_supplier:marketplace_suppliers(*)');
+  
+  if (marketplaceSupplierId) {
+    query = query.eq('marketplace_supplier_id', marketplaceSupplierId);
+  }
+  
+  const { data, error } = await query.order('account_name');
+
+  if (error) throw error;
+  return data;
+}
+
+// Product Categories functions
+export async function getProductCategories() {
+  const { data, error } = await supabase
+    .from('product_categories')
+    .select('*')
+    .order('name');
+
+  if (error) throw error;
+  return data;
+}
+
+export async function createProductCategory(category: Database['public']['Tables']['product_categories']['Insert']) {
+  const { data, error } = await supabase
+    .from('product_categories')
+    .insert(category)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateProductCategory(id: number, category: Database['public']['Tables']['product_categories']['Update']) {
+  const { data, error } = await supabase
+    .from('product_categories')
+    .update(category)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteProductCategory(id: number) {
+  const { error } = await supabase
+    .from('product_categories')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
 // Purchases functions
 export async function getPurchases() {
   const { data, error } = await supabase
@@ -100,12 +170,17 @@ export async function getPurchaseById(id: number) {
   return data;
 }
 
-export async function checkPurchaseOrderExists(no_pesanan: string) {
-  const { data, error } = await supabase
+export async function checkPurchaseOrderExists(no_pesanan: string, excludeId?: number) {
+  let query = supabase
     .from('purchases')
     .select('id')
-    .eq('no_pesanan', no_pesanan)
-    .single();
+    .eq('no_pesanan', no_pesanan);
+
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
+
+  const { data, error } = await query.single();
 
   if (error && error.code !== 'PGRST116') { // PGRST116 is the error code for no rows returned
     throw error;
@@ -160,6 +235,14 @@ export async function updatePurchase(
   purchase: Database['public']['Tables']['purchases']['Update'],
   details: Array<Omit<Database['public']['Tables']['purchase_details']['Insert'], 'purchase_id'> & { product?: any }>
 ) {
+  // Check if purchase order number already exists (excluding current purchase)
+  if (purchase.no_pesanan) {
+    const exists = await checkPurchaseOrderExists(purchase.no_pesanan, id);
+    if (exists) {
+      throw new Error('Nomor pesanan sudah digunakan');
+    }
+  }
+
   const { data: purchaseData, error: purchaseError } = await supabase
     .from('purchases')
     .update(purchase)

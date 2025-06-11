@@ -9,6 +9,54 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      marketplace_suppliers: {
+        Row: {
+          created_at: string
+          id: number
+          name: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          name: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          name?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      product_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: number
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           avg_sales: number
@@ -334,6 +382,38 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_accounts: {
+        Row: {
+          account_name: string
+          created_at: string
+          id: number
+          marketplace_supplier_id: number
+          updated_at: string
+        }
+        Insert: {
+          account_name: string
+          created_at?: string
+          id?: number
+          marketplace_supplier_id: number
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          created_at?: string
+          id?: number
+          marketplace_supplier_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_accounts_marketplace_supplier_id_fkey"
+            columns: ["marketplace_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_suppliers"
             referencedColumns: ["id"]
           },
         ]

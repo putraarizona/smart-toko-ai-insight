@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Package, 
   ShoppingCart, 
@@ -8,7 +8,10 @@ import {
   Settings,
   LogOut,
   User,
-  Store
+  Store,
+  Database,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +24,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeModule, onModuleChange }) => {
   const { signOut, profile, role, isOwner, isKasir } = useAuth();
+  const [masterExpanded, setMasterExpanded] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -57,7 +61,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activeModule, onModuleChange }) => {
     }
   ];
 
+  const masterMenuItems = [
+    {
+      id: 'master-marketplace',
+      label: 'Marketplace/Supplier',
+      roles: ['owner']
+    },
+    {
+      id: 'master-kategori',
+      label: 'Kategori Produk',
+      roles: ['owner']
+    }
+  ];
+
   const filteredMenuItems = menuItems.filter(item => 
+    item.roles.includes(role || 'kasir')
+  );
+
+  const filteredMasterItems = masterMenuItems.filter(item => 
     item.roles.includes(role || 'kasir')
   );
 
@@ -117,6 +138,48 @@ const Sidebar: React.FC<SidebarProps> = ({ activeModule, onModuleChange }) => {
               </button>
             );
           })}
+
+          {/* Master Menu */}
+          {filteredMasterItems.length > 0 && (
+            <div className="mt-4">
+              <button
+                onClick={() => setMasterExpanded(!masterExpanded)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeModule.startsWith('master-')
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <Database className="w-5 h-5" />
+                  <span className="font-medium">Master Data</span>
+                </div>
+                {masterExpanded ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </button>
+              
+              {masterExpanded && (
+                <div className="ml-6 mt-2 space-y-1">
+                  {filteredMasterItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => onModuleChange(item.id)}
+                      className={`w-full flex items-center px-3 py-2 rounded-lg text-left text-sm transition-colors ${
+                        activeModule === item.id
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </nav>
 

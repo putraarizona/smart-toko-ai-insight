@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,9 +55,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getPurchases, createPurchase, updatePurchase, deletePurchase, searchProducts as searchProductsDb } from '@/integrations/supabase/db';
+import { 
+  getPurchases, 
+  createPurchase, 
+  updatePurchase, 
+  deletePurchase, 
+  searchProducts as searchProductsDb,
+  getMarketplaceSuppliers,
+  getSupplierAccounts
+} from '@/integrations/supabase/db';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import { toast } from '@/hooks/use-toast';
 
 type Purchase = Database['public']['Tables']['purchases']['Row'] & {
   purchase_details: Array<Database['public']['Tables']['purchase_details']['Row'] & {
@@ -65,6 +75,8 @@ type Purchase = Database['public']['Tables']['purchases']['Row'] & {
 };
 
 type Product = Database['public']['Tables']['products']['Row'];
+type MarketplaceSupplier = Database['public']['Tables']['marketplace_suppliers']['Row'];
+type SupplierAccount = Database['public']['Tables']['supplier_accounts']['Row'];
 
 type PurchaseDetail = Database['public']['Tables']['purchase_details']['Insert'] & {
   product?: Product;
@@ -81,6 +93,8 @@ const PembelianModule = () => {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [marketplaceSuppliers, setMarketplaceSuppliers] = useState<MarketplaceSupplier[]>([]);
+  const [supplierAccounts, setSupplierAccounts] = useState<SupplierAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,7 +104,6 @@ const PembelianModule = () => {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editPurchaseId, setEditPurchaseId] = useState<number | null>(null);
   const [prevStatus, setPrevStatus] = useState<string | null>(null);
@@ -114,7 +127,7 @@ const PembelianModule = () => {
   });
 
   useEffect(() => {
-    loadPurchases();
+    loadInitialData();
   }, []);
 
   useEffect(() => {
@@ -136,15 +149,21 @@ const PembelianModule = () => {
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  const loadPurchases = async () => {
+  const loadInitialData = async () => {
     try {
       setLoading(true);
-      const data = await getPurchases();
-      setPurchases(data);
+      const [purchasesData, marketplaceData, accountsData] = await Promise.all([
+        getPurchases(),
+        getMarketplaceSuppliers(),
+        getSupplierAccounts()
+      ]);
+      setPurchases(purchasesData);
+      setMarketplaceSuppliers(marketplaceData);
+      setSupplierAccounts(accountsData);
       setError(null);
     } catch (err) {
-      console.error('Error loading purchases:', err);
-      setError(`Gagal memuat data pembelian: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      console.error('Error loading data:', err);
+      setError(`Gagal memuat data: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -156,6 +175,14 @@ const PembelianModule = () => {
       ...prev,
       [name]: value
     }));
+
+    // Reset akun when marketplace changes
+    if (name === 'marketplace_supplier') {
+      setFormData(prev => ({
+        ...prev,
+        akun: ''
+      }));
+    }
   };
 
   const handleDetailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -237,7 +264,11 @@ const PembelianModule = () => {
       setShowAddForm(true);
     } catch (err) {
       console.error('Error loading purchase details:', err);
-      setError('Gagal memuat detail pembelian');
+      toast({
+        title: "Error",
+        description: "Gagal memuat detail pembelian",
+        variant: "destructive"
+      });
     }
   };
 
@@ -257,7 +288,40 @@ const PembelianModule = () => {
     setShowAddForm(false);
   };
 
-  async function updateProductStockOnCompleted(details) {
+  // Improved WAC calculation function
+  async function updateProductWACOnCompleted(details: LocalPurchaseDetail[]) {
+    for (const detail of details) {
+      const { data: product, error } = await supabase
+        .from('products')
+        .select('current_stock, wac_harga_beli')
+        .eq('id', detail.product_id)
+        .single();
+      
+      if (error || !product) continue;
+      
+      const stokLama = product.current_stock || 0;
+      const wacLama = product.wac_harga_beli || 0;
+      const qtyBeli = detail.qty || 0;
+      const hargaBeli = detail.harga_per_unit || 0;
+      
+      // Calculate new WAC using the correct formula
+      const totalNilaiLama = stokLama * wacLama;
+      const totalNilaiBeli = qtyBeli * hargaBeli;
+      const totalStokBaru = stokLama + qtyBeli;
+      
+      let wacBaru = wacLama;
+      if (totalStokBaru > 0) {
+        wacBaru = (totalNilaiLama + totalNilaiBeli) / totalStokBaru;
+      }
+      
+      await supabase
+        .from('products')
+        .update({ wac_harga_beli: Math.round(wacBaru) })
+        .eq('id', detail.product_id);
+    }
+  }
+
+  async function updateProductStockOnCompleted(details: LocalPurchaseDetail[]) {
     for (const detail of details) {
       const { data: product, error } = await supabase
         .from('products')
@@ -272,42 +336,20 @@ const PembelianModule = () => {
     }
   }
 
-  async function updateProductWACOnCompleted(details) {
-    for (const detail of details) {
-      const { data: product, error } = await supabase
-        .from('products')
-        .select('current_stock, wac_harga_beli')
-        .eq('id', detail.product_id)
-        .single();
-      if (error || !product) continue;
-      
-      const stokLama = product.current_stock || 0;
-      const wacLama = product.wac_harga_beli || 0;
-      const qtyBeli = detail.qty || 0;
-      const hargaBeli = detail.harga_per_unit || 0;
-      
-      // Calculate new WAC
-      const totalNilaiLama = stokLama * wacLama;
-      const totalNilaiBeli = qtyBeli * hargaBeli;
-      const totalStokBaru = stokLama + qtyBeli;
-      const wacBaru = totalStokBaru > 0 ? (totalNilaiLama + totalNilaiBeli) / totalStokBaru : hargaBeli;
-      
-      await supabase
-        .from('products')
-        .update({ wac_harga_beli: Math.round(wacBaru) })
-        .eq('id', detail.product_id);
-    }
-  }
-
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (purchaseDetails.length === 0) {
-      alert('Tambahkan minimal 1 barang!');
+      toast({
+        title: "Error",
+        description: "Tambahkan minimal 1 barang!",
+        variant: "destructive"
+      });
       return;
     }
     try {
       setIsSubmitting(true);
       const totalHarga = purchaseDetails.reduce((sum, detail) => sum + detail.total_harga, 0);
+      
       if (editMode && editPurchaseId) {
         // Update
         const updatedPurchase = {
@@ -319,6 +361,7 @@ const PembelianModule = () => {
           total_harga: totalHarga
         };
         await updatePurchase(editPurchaseId, updatedPurchase, purchaseDetails);
+        
         if (prevStatus !== 'completed' && formData.status === 'completed') {
           await updateProductStockOnCompleted(purchaseDetails);
           await updateProductWACOnCompleted(purchaseDetails);
@@ -337,12 +380,14 @@ const PembelianModule = () => {
           total_harga: totalHarga
         };
         await createPurchase(newPurchase, purchaseDetails);
+        
         if (formData.status === 'completed') {
           await updateProductStockOnCompleted(purchaseDetails);
           await updateProductWACOnCompleted(purchaseDetails);
         }
       }
-      await loadPurchases();
+      
+      await loadInitialData();
       setShowAddForm(false);
       setFormData({
         tanggal_pemesanan: new Date().toISOString().split('T')[0],
@@ -353,11 +398,18 @@ const PembelianModule = () => {
         total_harga: 0
       });
       setPurchaseDetails([]);
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 2000);
+      
+      toast({
+        title: "Berhasil",
+        description: `Pembelian berhasil ${editMode ? 'diperbarui' : 'ditambahkan'}!`
+      });
     } catch (err) {
       console.error('Error saving purchase:', err);
-      setError(editMode ? 'Gagal memperbarui pembelian' : 'Gagal menambahkan pembelian');
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : (editMode ? 'Gagal memperbarui pembelian' : 'Gagal menambahkan pembelian'),
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -365,7 +417,6 @@ const PembelianModule = () => {
 
   const handleView = async (purchase: Purchase) => {
     try {
-      // Load purchase details with product information
       const { data, error } = await supabase
         .from('purchases')
         .select(`
@@ -383,7 +434,11 @@ const PembelianModule = () => {
       setIsViewDialogOpen(true);
     } catch (err) {
       console.error('Error loading purchase details:', err);
-      setError('Gagal memuat detail pembelian');
+      toast({
+        title: "Error",
+        description: "Gagal memuat detail pembelian",
+        variant: "destructive"
+      });
     }
   };
 
@@ -398,11 +453,19 @@ const PembelianModule = () => {
     try {
       setIsDeleting(true);
       await deletePurchase(selectedPurchase.id);
-      await loadPurchases();
+      await loadInitialData();
       setIsDeleteDialogOpen(false);
+      toast({
+        title: "Berhasil",
+        description: "Pembelian berhasil dihapus"
+      });
     } catch (err) {
       console.error('Error deleting purchase:', err);
-      setError('Gagal menghapus pembelian');
+      toast({
+        title: "Error",
+        description: "Gagal menghapus pembelian",
+        variant: "destructive"
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -419,8 +482,8 @@ const PembelianModule = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
-      currency: 'IDR'
-    }).format(amount);
+      currency: 'ID'
+    }).format(amount).replace(/\sID$/, '');
   };
 
   const getStatusColor = (status: string) => {
@@ -438,13 +501,20 @@ const PembelianModule = () => {
     }
   };
 
+  // Filter supplier accounts based on selected marketplace/supplier
+  const filteredAccounts = supplierAccounts.filter(account => {
+    // If no marketplace is selected, don't filter
+    if (!formData.marketplace_supplier) return true;
+    
+    // Find the marketplace supplier id from the name
+    const supplier = marketplaceSuppliers.find(ms => ms.name === formData.marketplace_supplier);
+    if (!supplier) return false;
+    
+    return account.marketplace_supplier_id === supplier.id;
+  });
+
   return (
     <div className="p-6 space-y-6">
-      {showSuccess && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded shadow z-50">
-          Data pembelian berhasil disimpan!
-        </div>
-      )}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Modul Pembelian</h1>
         <Button onClick={() => setShowAddForm(true)}>
@@ -492,26 +562,40 @@ const PembelianModule = () => {
               
               <div className="space-y-2">
                   <Label htmlFor="marketplace_supplier">Marketplace/Supplier</Label>
-                <Input
-                    id="marketplace_supplier"
-                    name="marketplace_supplier"
-                  placeholder="PT Baby Care Indonesia"
-                    value={formData.marketplace_supplier}
+                <select
+                  id="marketplace_supplier"
+                  name="marketplace_supplier"
+                  value={formData.marketplace_supplier}
                   onChange={handleInputChange}
-                    required
-                />
+                  className="w-full p-2 border rounded-md"
+                  required
+                >
+                  <option value="">Pilih Marketplace/Supplier</option>
+                  {marketplaceSuppliers.map((item) => (
+                    <option key={item.id} value={item.name}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div className="space-y-2">
                 <Label htmlFor="akun">Akun</Label>
-                <Input
+                <select
                   id="akun"
                   name="akun"
-                  placeholder="Supplier-001"
                   value={formData.akun}
                   onChange={handleInputChange}
-                    required
-                />
+                  className="w-full p-2 border rounded-md"
+                  disabled={!formData.marketplace_supplier}
+                >
+                  <option value="">Pilih Akun</option>
+                  {filteredAccounts.map((account) => (
+                    <option key={account.id} value={account.account_name}>
+                      {account.account_name}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div className="space-y-2">
@@ -697,7 +781,7 @@ const PembelianModule = () => {
                 </div>
                 <div>
                   <Label>Akun</Label>
-                  <p>{selectedPurchase.akun}</p>
+                  <p>{selectedPurchase.akun || '-'}</p>
                 </div>
                 <div>
                   <Label>Status</Label>
@@ -782,7 +866,7 @@ const PembelianModule = () => {
                 <TableCell>{purchase.tanggal_pemesanan}</TableCell>
                 <TableCell>{purchase.no_pesanan}</TableCell>
                 <TableCell>{purchase.marketplace_supplier}</TableCell>
-                <TableCell>{purchase.akun}</TableCell>
+                <TableCell>{purchase.akun || '-'}</TableCell>
                 <TableCell>{formatCurrency(purchase.total_harga)}</TableCell>
                     <TableCell>
                   <Badge className={getStatusColor(purchase.status)}>
