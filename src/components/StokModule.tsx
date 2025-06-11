@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Plus, Search, Package, AlertTriangle, TrendingUp } from 'lucide-react';
-import { getProducts, addProduct, updateProduct, deleteProduct } from '@/integrations/supabase/db';
+import { getProducts, createProduct, updateProduct, deleteProduct } from '@/integrations/supabase/db';
 import type { Database } from '@/integrations/supabase/types';
 
 type Product = Database['public']['Tables']['products']['Row'];
@@ -29,7 +29,7 @@ const StokModule = () => {
     max_stock: 0,
     harga_jual: 0,
     wac_harga_beli: 0,
-    status: 'active' as const,
+    status: 'active' as 'active' | 'inactive',
     avg_sales: 0
   });
 
@@ -59,9 +59,9 @@ const StokModule = () => {
     e.preventDefault();
     try {
       if (editingProduct) {
-        await updateProduct(editingProduct.id.toString(), editingProduct.code.toString(), editingProduct.name.toString(), formData);
+        await updateProduct(editingProduct.id, formData);
       } else {
-        await addProduct(formData);
+        await createProduct(formData);
       }
       await fetchProducts();
       resetForm();
@@ -88,10 +88,10 @@ const StokModule = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: number, code: string, name: string) => {
-    if (window.confirm(`Apakah Anda yakin ingin menghapus produk ${name}?`)) {
+  const handleDelete = async (id: number) => {
+    if (window.confirm(`Apakah Anda yakin ingin menghapus produk ini?`)) {
       try {
-        await deleteProduct(id.toString(), code.toString(), name.toString());
+        await deleteProduct(id);
         await fetchProducts();
       } catch (error) {
         console.error('Error deleting product:', error);
@@ -369,7 +369,7 @@ const StokModule = () => {
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleDelete(product.id, product.code, product.name)}
+                            onClick={() => handleDelete(product.id)}
                           >
                             Hapus
                           </Button>
