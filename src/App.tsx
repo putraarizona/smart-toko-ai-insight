@@ -10,7 +10,7 @@ import PenjualanModule from './components/PenjualanModule';
 import MasterMarketplaceModule from './components/MasterMarketplaceModule';
 import MasterKategoriModule from './components/MasterKategoriModule';
 import ProtectedRoute from './components/ProtectedRoute';
-import AuthProvider from './components/AuthProvider';
+import { AuthProvider } from './components/AuthProvider';
 import './App.css';
 
 function App() {
