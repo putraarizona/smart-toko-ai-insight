@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +33,7 @@ const StokModule = () => {
     max_stock: 0,
     harga_jual: 0,
     wac_harga_beli: 0,
-    status: 'active' as 'active' | 'inactive',
+    status: 'active' as const,
     avg_sales: 0
   });
 
@@ -140,8 +141,15 @@ const StokModule = () => {
   const getStockStatus = (current: number, min: number, max: number) => {
     if (current <= min) return { status: 'low', color: 'destructive' };
     if (current >= max) return { status: 'high', color: 'warning' };
-    return { status: 'normal', color: 'success' };
+    return { status: 'normal', color: 'default' };
   };
+
+  // Perbaikan logika perhitungan total nilai stok
+  const totalStockValue = products.reduce((total, product) => {
+    const wacPrice = Number(product.wac_harga_beli) || 0;
+    const currentStock = Number(product.current_stock) || 0;
+    return total + (currentStock * wacPrice);
+  }, 0);
 
   return (
     <div className="p-6 space-y-6 h-screen overflow-auto">
@@ -316,9 +324,7 @@ const StokModule = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              Rp {products.reduce((total, product) => 
-                total + (product.current_stock * (Number(product.wac_harga_beli) || 0)), 0
-              ).toLocaleString('id-ID')}
+              Rp {totalStockValue.toLocaleString('id-ID')}
             </div>
           </CardContent>
         </Card>

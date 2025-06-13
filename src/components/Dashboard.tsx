@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,19 +13,14 @@ import {
   Calendar,
   Star
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { getProducts, getSales } from '@/integrations/supabase/db';
 import { useAuth } from './AuthProvider';
+import FlexibleChart from './FlexibleChart';
 import type { Database } from '@/integrations/supabase/types';
 
 type Product = Database['public']['Tables']['products']['Row'];
 type Sale = Database['public']['Tables']['sales']['Row'];
-
-interface ChartDataPoint {
-  name: string;
-  penjualan: number;
-  margin: number;
-}
 
 const Dashboard = () => {
   const { isOwner, profile } = useAuth();
@@ -40,8 +36,8 @@ const Dashboard = () => {
           getProducts(),
           getSales()
         ]);
-        setProducts(productsData);
-        setSales(salesData);
+        setProducts(productsData || []);
+        setSales(salesData || []);
       } catch (error) {
         console.error('Error loading dashboard data:', error);
       } finally {
@@ -61,9 +57,11 @@ const Dashboard = () => {
   const lowStockProducts = products.filter(p => p.current_stock <= p.min_stock).length;
   const criticalStockProducts = products.filter(p => p.current_stock < p.min_stock).length;
   
-  // Calculate total stock value
+  // Perbaikan logika perhitungan total stock value
   const totalStockValue = products.reduce((sum, product) => {
-    return sum + (product.current_stock * (product.wac_harga_beli || 0));
+    const wacPrice = Number(product.wac_harga_beli) || 0;
+    const currentStock = Number(product.current_stock) || 0;
+    return sum + (currentStock * wacPrice);
   }, 0);
   
   const todaySales = sales.filter(s => {
@@ -75,24 +73,6 @@ const Dashboard = () => {
   const totalSalesToday = todaySales.reduce((sum, sale) => sum + sale.total_amount, 0);
   const totalMarginToday = todaySales.reduce((sum, sale) => sum + sale.total_margin, 0);
   const transactionCount = todaySales.length;
-
-  // Sample chart data (last 7 days)
-  const chartData: ChartDataPoint[] = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (6 - i));
-    const dayName = date.toLocaleDateString('id-ID', { weekday: 'short' });
-    
-    const daySales = sales.filter(s => {
-      const saleDate = new Date(s.sale_date);
-      return saleDate.toDateString() === date.toDateString() && s.status === 'completed';
-    });
-    
-    return {
-      name: dayName,
-      penjualan: daySales.reduce((sum, sale) => sum + sale.total_amount, 0),
-      margin: daySales.reduce((sum, sale) => sum + sale.total_margin, 0)
-    };
-  });
 
   // Category distribution data
   const categoryData = products.reduce((acc, product) => {
@@ -219,48 +199,24 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* Charts */}
+      {/* Flexible Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Penjualan 7 Hari Terakhir</CardTitle>
-            <CardDescription>Tren penjualan harian</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip formatter={(value: any) => formatCurrency(Number(value), 0)} />
-                <Bar dataKey="penjualan" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Margin 7 Hari Terakhir</CardTitle>
-            <CardDescription>Tren keuntungan harian</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip formatter={(value: any) => formatCurrency(Number(value), 0)} />
-                <Line type="monotone" dataKey="margin" stroke="#10b981" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        <FlexibleChart
+          title="Penjualan"
+          description="Tren penjualan dengan periode fleksibel"
+          dataKey="penjualan"
+          chartType="bar"
+        />
+        <FlexibleChart
+          title="Margin"
+          description="Tren keuntungan dengan periode fleksibel"
+          dataKey="margin"
+          chartType="line"
+        />
       </div>
 
-      {/* New sections from old version */}
+      {/* Category Distribution and Top Products */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Category Distribution */}
         <Card className="smart-card">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -284,13 +240,11 @@ const Dashboard = () => {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Top Products */}
         <Card className="smart-card">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -351,7 +305,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* AI Insights */}
           <Card className="smart-card">
             <CardHeader>
               <CardTitle>AI Insights</CardTitle>
