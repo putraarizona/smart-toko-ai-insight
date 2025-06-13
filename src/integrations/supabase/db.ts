@@ -353,10 +353,14 @@ export async function createSale(
 
     console.log('Sale created successfully:', saleData);
 
-    const salesDetails = details.map(detail => ({
-      ...detail,
-      sale_id: saleData.id
-    }));
+    // Remove any non-database fields before inserting
+    const salesDetails = details.map(detail => {
+      const { product, ...validDetail } = detail as any;
+      return {
+        ...validDetail,
+        sale_id: saleData.id
+      };
+    });
 
     console.log('Inserting sale details:', salesDetails);
 
