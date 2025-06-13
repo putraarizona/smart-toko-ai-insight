@@ -61,7 +61,11 @@ const StokModule = () => {
       if (editingProduct) {
         await updateProduct(editingProduct.id, formData);
       } else {
-        await createProduct(formData);
+        const productData = {
+          ...formData,
+          last_update: new Date().toISOString().split('T')[0] // Add current date as last_update
+        };
+        await createProduct(productData);
       }
       await fetchProducts();
       resetForm();
