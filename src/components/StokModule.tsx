@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,7 +32,7 @@ const StokModule = () => {
     max_stock: 0,
     harga_jual: 0,
     wac_harga_beli: 0,
-    status: 'active' as const,
+    status: 'active' as 'active' | 'inactive',
     avg_sales: 0
   });
 
@@ -144,7 +143,7 @@ const StokModule = () => {
     return { status: 'normal', color: 'default' };
   };
 
-  // Perbaikan logika perhitungan total nilai stok
+  // Fixed calculation for total stock value
   const totalStockValue = products.reduce((total, product) => {
     const wacPrice = Number(product.wac_harga_beli) || 0;
     const currentStock = Number(product.current_stock) || 0;
