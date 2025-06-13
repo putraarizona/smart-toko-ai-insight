@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,15 +6,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Search, Package, AlertTriangle, TrendingUp } from 'lucide-react';
-import { getProducts, createProduct, updateProduct, deleteProduct } from '@/integrations/supabase/db';
+import { getProducts, createProduct, updateProduct, deleteProduct, getProductCategories } from '@/integrations/supabase/db';
 import type { Database } from '@/integrations/supabase/types';
 
 type Product = Database['public']['Tables']['products']['Row'];
+type ProductCategory = Database['public']['Tables']['product_categories']['Row'];
 
 const StokModule = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [categorySearch, setCategorySearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -35,6 +38,7 @@ const StokModule = () => {
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
   }, []);
 
   const fetchProducts = async () => {
@@ -49,10 +53,23 @@ const StokModule = () => {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const data = await getProductCategories();
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.category.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredCategories = categories.filter(category =>
+    category.name.toLowerCase().includes(categorySearch.toLowerCase())
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,7 +80,7 @@ const StokModule = () => {
       } else {
         const productData = {
           ...formData,
-          last_update: new Date().toISOString().split('T')[0] // Add current date as last_update
+          last_update: new Date().toISOString().split('T')[0]
         };
         await createProduct(productData);
       }
@@ -117,6 +134,7 @@ const StokModule = () => {
       avg_sales: 0
     });
     setEditingProduct(null);
+    setCategorySearch('');
   };
 
   const getStockStatus = (current: number, min: number, max: number) => {
@@ -126,7 +144,7 @@ const StokModule = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 h-screen overflow-auto">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Manajemen Stok</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -164,12 +182,29 @@ const StokModule = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Kategori</Label>
-                <Input
-                  id="category"
+                <Select
                   value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  required
-                />
+                  onValueChange={(value) => setFormData({ ...formData, category: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <div className="px-2 py-1">
+                      <Input
+                        placeholder="Cari kategori..."
+                        value={categorySearch}
+                        onChange={(e) => setCategorySearch(e.target.value)}
+                        className="h-8"
+                      />
+                    </div>
+                    {filteredCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.name}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
