@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -482,8 +481,8 @@ const PembelianModule = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
-      currency: 'ID'
-    }).format(amount).replace(/\sID$/, '');
+      currency: 'IDR'
+    }).format(amount).replace(/\sIDR$/, '');
   };
 
   const getStatusColor = (status: string) => {
