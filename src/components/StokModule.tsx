@@ -22,6 +22,7 @@ const StokModule = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [statusFilter, setStatusFilter] = useState<Product['status'] | 'all'>('all');
 
   const [formData, setFormData] = useState({
     code: '',
@@ -64,11 +65,13 @@ const StokModule = () => {
     }
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const filteredCategories = categories.filter(category =>
     category.name.toLowerCase().includes(categorySearch.toLowerCase())
@@ -336,10 +339,10 @@ const StokModule = () => {
                     onChange={handleInputChange}
                     required
                   />
-                  {parseInt(formData.min_stock) > 0 && parseInt(formData.max_stock) > 0 && 
-                   !validateMaxStock(parseInt(formData.min_stock), parseInt(formData.max_stock)) && (
+                  {formData.min_stock > 0 && formData.max_stock > 0 && 
+                   !validateMaxStock(formData.min_stock, formData.max_stock) && (
                     <p className="text-sm text-red-500 mt-1">
-                      Stok maksimum harus ≥ {parseInt(formData.min_stock) + 4}
+                      Stok maksimum harus ≥ {formData.min_stock + 4}
                     </p>
                   )}
                 </div>
@@ -449,8 +452,23 @@ const StokModule = () => {
               placeholder="Cari produk berdasarkan nama, kode, atau kategori..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
+              className=""
             />
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => setStatusFilter(value as Product['status'] | 'all')}
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="good">Good</SelectItem>
+                <SelectItem value="overstock">Overstock</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
       </Card>
