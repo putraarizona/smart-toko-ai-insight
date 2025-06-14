@@ -55,8 +55,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getSales, createSale, updateSaleStatus, deleteSale, searchProducts as searchProductsDb } from '@/integrations/supabase/db';
+import { getSales, createSale, updateSaleStatus, deleteSale, searchProducts as searchProductsDb, getSaleById } from '@/integrations/supabase/db';
 import { useAuth } from './AuthProvider';
+import PrintReceipt from './PrintReceipt';
 import type { Database } from '@/integrations/supabase/types';
 
 type Sale = Database['public']['Tables']['sales']['Row'] & {
@@ -103,6 +104,8 @@ const PenjualanModule = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showPrintReceipt, setShowPrintReceipt] = useState(false);
+  const [lastCreatedSale, setLastCreatedSale] = useState<Sale | null>(null);
 
   const [formData, setFormData] = useState<SaleFormData>({
     sale_number: `SAL-${Date.now()}`,
@@ -269,7 +272,12 @@ const PenjualanModule = () => {
         notes: formData.notes
       };
 
-      await createSale(newSale, saleDetails);
+      const createdSale = await createSale(newSale, saleDetails);
+      
+      // Get the complete sale data with details for printing
+      const completeSaleData = await getSaleById(createdSale.id);
+      setLastCreatedSale(completeSaleData);
+      
       await loadSales();
       
       // Reset form
@@ -285,6 +293,9 @@ const PenjualanModule = () => {
       setSaleDetails([]);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
+      
+      // Show print receipt
+      setShowPrintReceipt(true);
     } catch (err) {
       console.error('Error saving sale:', err);
       setError('Gagal menyimpan penjualan');
@@ -705,6 +716,21 @@ const PenjualanModule = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Print Receipt Dialog */}
+      <Dialog open={showPrintReceipt} onOpenChange={setShowPrintReceipt}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cetak Struk</DialogTitle>
+          </DialogHeader>
+          {lastCreatedSale && (
+            <PrintReceipt 
+              sale={lastCreatedSale} 
+              onPrint={() => setShowPrintReceipt(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="mt-6">
         <Table>
