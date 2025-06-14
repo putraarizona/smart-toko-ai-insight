@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Package, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Plus, Search, Package, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
 import { getProducts, createProduct, updateProduct, deleteProduct, getProductCategories } from '@/integrations/supabase/db';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -36,6 +35,8 @@ const StokModule = () => {
     status: 'active' as 'active' | 'inactive',
     avg_sales: 0
   });
+
+  const [isMinStockValid, setIsMinStockValid] = useState(true);
 
   useEffect(() => {
     fetchProducts();
@@ -73,17 +74,50 @@ const StokModule = () => {
     category.name.toLowerCase().includes(categorySearch.toLowerCase())
   );
 
+  const updateProductStatus = async (productId: number, currentStock: number, minStock: number, maxStock: number) => {
+    try {
+      const status = getStockStatus(currentStock, minStock, maxStock).status;
+      const last_update = new Date().toISOString().split('T')[0];
+      await updateProduct(productId, { status, last_update });
+    } catch (error) {
+      console.error('Error updating product status:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (editingProduct) {
         await updateProduct(editingProduct.id, formData);
+        await updateProductStatus(
+          editingProduct.id,
+          formData.current_stock,
+          formData.min_stock,
+          formData.max_stock
+        );
       } else {
         const productData = {
-          ...formData,
-          last_update: new Date().toISOString().split('T')[0]
+          code: formData.code,
+          name: formData.name,
+          category: formData.category,
+          current_stock: formData.current_stock,
+          min_stock: formData.min_stock,
+          max_stock: formData.max_stock,
+          harga_jual: formData.harga_jual,
+          wac_harga_beli: formData.wac_harga_beli,
+          avg_sales: formData.avg_sales,
+          last_update: new Date().toISOString().split('T')[0],
+          status: 'good',
         };
-        await createProduct(productData);
+        const newProduct = await createProduct(productData);
+        if (newProduct) {
+          await updateProductStatus(
+            newProduct.id,
+            formData.current_stock,
+            formData.min_stock,
+            formData.max_stock
+          );
+        }
       }
       await fetchProducts();
       resetForm();
@@ -136,12 +170,57 @@ const StokModule = () => {
     });
     setEditingProduct(null);
     setCategorySearch('');
+    setIsMinStockValid(true);
   };
 
-  const getStockStatus = (current: number, min: number, max: number) => {
-    if (current <= min) return { status: 'low', color: 'destructive' };
-    if (current >= max) return { status: 'high', color: 'warning' };
-    return { status: 'normal', color: 'default' };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type } = e.target;
+    const newValue = type === 'number' ? Number(value) : value;
+    setFormData(prev => ({
+      ...prev,
+      [name]: newValue
+    }));
+
+    if (editingProduct && ['current_stock', 'min_stock', 'max_stock'].includes(name)) {
+      const currentStock = name === 'current_stock' ? Number(value) : formData.current_stock;
+      const minStock = name === 'min_stock' ? Number(value) : formData.min_stock;
+      const maxStock = name === 'max_stock' ? Number(value) : formData.max_stock;
+      
+      updateProductStatus(editingProduct.id, currentStock, minStock, maxStock);
+    }
+  };
+
+  const validateMaxStock = (min: number, max: number): boolean => {
+    return max >= min + 4;
+  };
+
+  const getStatusColor = (status: Product['status']) => {
+    switch(status) {
+      case 'critical': return 'bg-red-100 text-red-800';
+      case 'low': return 'bg-orange-100 text-orange-800';
+      case 'good': return 'bg-green-100 text-green-800';
+      case 'overstock': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusIcon = (status: Product['status']) => {
+    switch(status) {
+      case 'critical': return <AlertTriangle className="w-4 h-4" />;
+      case 'low': return <TrendingDown className="w-4 h-4" />;
+      case 'good': return <TrendingUp className="w-4 h-4" />;
+      case 'overstock': return <Package className="w-4 h-4" />;
+      default: return null;
+    }
+  };
+
+  const getStockStatus = (current: number, min: number, max: number): { status: Product['status'], color: string } => {
+    // Cek overstock terlebih dahulu
+    if (current > max) return { status: 'overstock', color: 'info' };
+    // Kemudian cek status lainnya
+    if (current < min) return { status: 'critical', color: 'destructive' };
+    if (current <= min + 4) return { status: 'low', color: 'warning' };
+    return { status: 'good', color: 'success' };
   };
 
   // Fixed calculation for total stock value
@@ -173,8 +252,9 @@ const StokModule = () => {
                 <Label htmlFor="code">Kode Produk</Label>
                 <Input
                   id="code"
+                  name="code"
                   value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  onChange={handleInputChange}
                   required
                   disabled={!!editingProduct}
                 />
@@ -183,8 +263,9 @@ const StokModule = () => {
                 <Label htmlFor="name">Nama Produk</Label>
                 <Input
                   id="name"
+                  name="name"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={handleInputChange}
                   required
                 />
               </div>
@@ -219,9 +300,10 @@ const StokModule = () => {
                   <Label htmlFor="current_stock">Stok Saat Ini</Label>
                   <Input
                     id="current_stock"
+                    name="current_stock"
                     type="number"
-                    value={formData.current_stock}
-                    onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
+                    value={String(formData.current_stock)}
+                    onChange={handleInputChange}
                     required
                   />
                 </div>
@@ -229,11 +311,18 @@ const StokModule = () => {
                   <Label htmlFor="min_stock">Stok Minimum</Label>
                   <Input
                     id="min_stock"
+                    name="min_stock"
                     type="number"
-                    value={formData.min_stock}
-                    onChange={(e) => setFormData({ ...formData, min_stock: parseInt(e.target.value) || 0 })}
+                    value={String(formData.min_stock)}
+                    onChange={handleInputChange}
                     required
+                    min={1}
                   />
+                  {!isMinStockValid && (
+                    <p className="text-sm text-red-500 mt-1">
+                      Stok minimum harus lebih dari 0
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -241,19 +330,27 @@ const StokModule = () => {
                   <Label htmlFor="max_stock">Stok Maksimum</Label>
                   <Input
                     id="max_stock"
+                    name="max_stock"
                     type="number"
-                    value={formData.max_stock}
-                    onChange={(e) => setFormData({ ...formData, max_stock: parseInt(e.target.value) || 0 })}
+                    value={String(formData.max_stock)}
+                    onChange={handleInputChange}
                     required
                   />
+                  {parseInt(formData.min_stock) > 0 && parseInt(formData.max_stock) > 0 && 
+                   !validateMaxStock(parseInt(formData.min_stock), parseInt(formData.max_stock)) && (
+                    <p className="text-sm text-red-500 mt-1">
+                      Stok maksimum harus ≥ {parseInt(formData.min_stock) + 4}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="harga_jual">Harga Jual</Label>
                   <Input
                     id="harga_jual"
+                    name="harga_jual"
                     type="number"
-                    value={formData.harga_jual}
-                    onChange={(e) => setFormData({ ...formData, harga_jual: parseFloat(e.target.value) || 0 })}
+                    value={String(formData.harga_jual)}
+                    onChange={handleInputChange}
                     required
                   />
                 </div>
@@ -263,18 +360,20 @@ const StokModule = () => {
                   <Label htmlFor="wac_harga_beli">WAC Harga Beli</Label>
                   <Input
                     id="wac_harga_beli"
+                    name="wac_harga_beli"
                     type="number"
-                    value={formData.wac_harga_beli}
-                    onChange={(e) => setFormData({ ...formData, wac_harga_beli: parseFloat(e.target.value) || 0 })}
+                    value={String(formData.wac_harga_beli)}
+                    onChange={handleInputChange}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="avg_sales">Rata-rata Penjualan</Label>
                   <Input
                     id="avg_sales"
+                    name="avg_sales"
                     type="number"
-                    value={formData.avg_sales}
-                    onChange={(e) => setFormData({ ...formData, avg_sales: parseFloat(e.target.value) || 0 })}
+                    value={String(formData.avg_sales)}
+                    onChange={handleInputChange}
                   />
                 </div>
               </div>
@@ -398,8 +497,8 @@ const StokModule = () => {
                       <TableCell>Rp {Number(product.harga_jual).toLocaleString('id-ID')}</TableCell>
                       <TableCell>Rp {Number(product.wac_harga_beli).toLocaleString('id-ID')}</TableCell>
                       <TableCell>
-                        <Badge variant={product.status === 'active' ? 'default' : 'secondary'}>
-                          {product.status}
+                        <Badge className={getStatusColor(stockStatus.status)}>
+                          {stockStatus.status}
                         </Badge>
                       </TableCell>
                       <TableCell>
