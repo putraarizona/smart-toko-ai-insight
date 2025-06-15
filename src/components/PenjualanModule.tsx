@@ -58,6 +58,7 @@ import {
 import { getSales, createSale, updateSaleStatus, deleteSale, searchProducts as searchProductsDb, getSaleById } from '@/integrations/supabase/db';
 import { useAuth } from './AuthProvider';
 import PrintReceipt from './PrintReceipt';
+import TransactionConfirmationDialog from './TransactionConfirmationDialog';
 import type { Database } from '@/integrations/supabase/types';
 
 type Sale = Database['public']['Tables']['sales']['Row'] & {
@@ -105,6 +106,7 @@ const PenjualanModule = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showPrintReceipt, setShowPrintReceipt] = useState(false);
+  const [showTransactionConfirmation, setShowTransactionConfirmation] = useState(false);
   const [lastCreatedSale, setLastCreatedSale] = useState<Sale | null>(null);
   const [receivedMoney, setReceivedMoney] = useState<number>(0);
 
@@ -276,7 +278,7 @@ const PenjualanModule = () => {
 
       const createdSale = await createSale(newSale, saleDetails);
       
-      // Get the complete sale data with details for printing
+      // Get the complete sale data with details for the confirmation dialog
       const completeSaleData = await getSaleById(createdSale.id);
       setLastCreatedSale(completeSaleData);
       
@@ -293,14 +295,31 @@ const PenjualanModule = () => {
         notes: ''
       });
       setSaleDetails([]);
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 2000);
       
-      // Show print receipt
-      setShowPrintReceipt(true);
+      // Show transaction confirmation dialog instead of immediate print
+      setShowTransactionConfirmation(true);
     } catch (err) {
       console.error('Error saving sale:', err);
       setError('Gagal menyimpan penjualan');
+    }
+  };
+
+  const handlePrintFromConfirmation = () => {
+    setShowTransactionConfirmation(false);
+    setShowPrintReceipt(true);
+  };
+
+  const handleCancelTransactionFromConfirmation = async () => {
+    if (!lastCreatedSale) return;
+    
+    try {
+      await updateSaleStatus(lastCreatedSale.id, 'cancelled');
+      await loadSales();
+      setShowTransactionConfirmation(false);
+      setLastCreatedSale(null);
+    } catch (err) {
+      console.error('Error cancelling transaction:', err);
+      setError('Gagal membatalkan transaksi');
     }
   };
 
@@ -663,6 +682,17 @@ const PenjualanModule = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Transaction Confirmation Dialog */}
+      <TransactionConfirmationDialog
+        open={showTransactionConfirmation}
+        onOpenChange={setShowTransactionConfirmation}
+        sale={lastCreatedSale}
+        receivedMoney={receivedMoney}
+        onPrintReceipt={handlePrintFromConfirmation}
+        onCancelTransaction={handleCancelTransactionFromConfirmation}
+        isSuccess={true}
+      />
 
       {/* View Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
