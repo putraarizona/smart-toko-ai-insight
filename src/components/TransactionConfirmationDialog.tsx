@@ -26,7 +26,9 @@ import {
   Receipt,
   CreditCard,
   Banknote,
-  ShoppingCart
+  ShoppingCart,
+  Percent,
+  Calculator
 } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -40,20 +42,24 @@ interface TransactionConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sale: Sale | null;
-  receivedMoney: number;
-  onPrintReceipt: () => void;
+  receivedMoney?: number;
+  onPrintReceipt?: () => void;
   onCancelTransaction?: () => void;
-  isSuccess: boolean;
+  isSuccess?: boolean;
+  mode?: 'confirmation' | 'detail'; // New prop to distinguish modes
+  title?: string; // Custom title for detail mode
 }
 
 const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps> = ({
   open,
   onOpenChange,
   sale,
-  receivedMoney,
+  receivedMoney = 0,
   onPrintReceipt,
   onCancelTransaction,
-  isSuccess = true
+  isSuccess = true,
+  mode = 'confirmation',
+  title
 }) => {
   if (!sale) return null;
 
@@ -79,28 +85,40 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
 
   const change = receivedMoney - sale.total_amount;
 
+  // Determine dialog title based on mode
+  const getDialogTitle = () => {
+    if (title) return title;
+    if (mode === 'detail') return 'Detail Penjualan';
+    return isSuccess ? 'Transaksi Berhasil!' : 'Transaksi Gagal!';
+  };
+
+  // Determine if we should show success/error icon
+  const showStatusIcon = mode === 'confirmation';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl w-[95vw] h-[90vh] p-0 flex flex-col">
         {/* Fixed Header */}
         <div className="flex-shrink-0 p-6 pb-4 border-b">
           <DialogHeader className="text-center">
-            <div className="flex justify-center mb-3">
-              {isSuccess ? (
-                <CheckCircle className="w-12 h-12 text-green-500" />
-              ) : (
-                <X className="w-12 h-12 text-red-500" />
-              )}
-            </div>
+            {showStatusIcon && (
+              <div className="flex justify-center mb-3">
+                {isSuccess ? (
+                  <CheckCircle className="w-12 h-12 text-green-500" />
+                ) : (
+                  <X className="w-12 h-12 text-red-500" />
+                )}
+              </div>
+            )}
             <DialogTitle className="text-lg sm:text-xl font-bold">
-              {isSuccess ? 'Transaksi Berhasil!' : 'Transaksi Gagal!'}
+              {getDialogTitle()}
             </DialogTitle>
           </DialogHeader>
         </div>
 
         {/* Scrollable Content */}
         <ScrollArea className="flex-1 px-6">
-          {isSuccess ? (
+          {(isSuccess || mode === 'detail') ? (
             <div className="space-y-4 pb-4">
               {/* Transaction Summary Card */}
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
@@ -110,13 +128,13 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
                     <span className="font-medium text-sm">Ringkasan Transaksi</span>
                   </div>
                   <Badge className="bg-green-100 text-green-800 text-xs">
-                    Selesai
+                    {mode === 'detail' ? 'Selesai' : 'Selesai'}
                   </Badge>
                 </div>
 
                 <Separator />
 
-                {/* Transaction Details Grid */}
+                {/* Transaction Details Grid - Updated with Discount and Tax */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div className="space-y-2">
                     <div className="flex justify-between">
@@ -132,6 +150,16 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
                     <div className="flex justify-between">
                       <span className="text-gray-600">Kasir:</span>
                       <span className="font-medium">{sale.cashier_name}</span>
+                    </div>
+                    {/* New Discount Row */}
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Diskon:</span>
+                      <div className="flex items-center space-x-1">
+                        <Percent className="w-3 h-3 text-orange-500" />
+                        <span className="font-medium text-orange-600">
+                          {sale.discount_amount > 0 ? formatCurrency(sale.discount_amount) : '-'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -154,6 +182,16 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
                       <span className="font-medium">
                         {sale.sales_details?.length || 0} item
                       </span>
+                    </div>
+                    {/* New Tax Row */}
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Pajak:</span>
+                      <div className="flex items-center space-x-1">
+                        <Calculator className="w-3 h-3 text-blue-500" />
+                        <span className="font-medium text-blue-600">
+                          {sale.tax_amount > 0 ? formatCurrency(sale.tax_amount) : '-'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -248,15 +286,19 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
                     <span className="text-blue-600">{formatCurrency(sale.total_amount)}</span>
                   </div>
                   
-                  <div className="flex justify-between font-medium text-sm">
-                    <span>Uang Diterima:</span>
-                    <span className="text-green-600">{formatCurrency(receivedMoney)}</span>
-                  </div>
-                  
-                  <div className="flex justify-between font-bold text-sm">
-                    <span>Kembalian:</span>
-                    <span className="text-green-600">{formatCurrency(Math.max(0, change))}</span>
-                  </div>
+                  {mode === 'confirmation' && receivedMoney > 0 && (
+                    <>
+                      <div className="flex justify-between font-medium text-sm">
+                        <span>Uang Diterima:</span>
+                        <span className="text-green-600">{formatCurrency(receivedMoney)}</span>
+                      </div>
+                      
+                      <div className="flex justify-between font-bold text-sm">
+                        <span>Kembalian:</span>
+                        <span className="text-green-600">{formatCurrency(Math.max(0, change))}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -272,15 +314,17 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
 
         {/* Fixed Action Buttons */}
         <div className="flex-shrink-0 p-4 border-t bg-white">
-          {isSuccess ? (
+          {mode === 'confirmation' && (isSuccess || mode === 'detail') ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <Button 
-                onClick={onPrintReceipt}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm h-10"
-              >
-                <Printer className="w-4 h-4 mr-2" />
-                Cetak Struk
-              </Button>
+              {onPrintReceipt && (
+                <Button 
+                  onClick={onPrintReceipt}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm h-10"
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Cetak Struk
+                </Button>
+              )}
               
               {onCancelTransaction && (
                 <Button 
@@ -296,18 +340,20 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
               <Button 
                 onClick={() => onOpenChange(false)}
                 variant="outline" 
-                className={`w-full text-sm h-10 ${!onCancelTransaction ? 'sm:col-span-2' : ''}`}
+                className={`w-full text-sm h-10 ${(!onPrintReceipt && !onCancelTransaction) ? 'sm:col-span-3' : (onPrintReceipt && onCancelTransaction) ? '' : 'sm:col-span-2'}`}
               >
                 <X className="w-4 h-4 mr-2" />
                 Tutup
               </Button>
             </div>
           ) : (
+            /* Detail mode or error state - simple close button */
             <Button 
               onClick={() => onOpenChange(false)}
               variant="outline" 
               className="w-full text-sm h-10"
             >
+              <X className="w-4 h-4 mr-2" />
               Tutup
             </Button>
           )}
