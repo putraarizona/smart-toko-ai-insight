@@ -112,7 +112,7 @@ const PenjualanModule = () => {
   const [showPrintReceipt, setShowPrintReceipt] = useState(false);
   const [showTransactionConfirmation, setShowTransactionConfirmation] = useState(false);
   const [lastCreatedSale, setLastCreatedSale] = useState<Sale | null>(null);
-  const [receivedMoney, setReceivedMoney] = useState<number>(0);
+  const [receivedMoney, setReceivedMoney] = useState<string>('');
 
   const [formData, setFormData] = useState<SaleFormData>({
     sale_number: `SAL-${Date.now()}`,
@@ -184,10 +184,21 @@ const PenjualanModule = () => {
 
   const handleDetailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    
+    // Handle numeric fields more carefully
+    let numericValue = 0;
+    if (name === 'quantity') {
+      // For quantity, only allow integers
+      numericValue = parseInt(value) || 0;
+    } else if (name === 'unit_price') {
+      // For unit_price, allow decimals
+      numericValue = parseFloat(value) || 0;
+    }
+    
     setCurrentDetail(prev => {
       const newDetail = {
         ...prev,
-        [name]: name === 'quantity' || name === 'unit_price' ? parseInt(value) || 0 : value
+        [name]: name === 'quantity' || name === 'unit_price' ? numericValue : value
       };
 
       if (name === 'quantity' || name === 'unit_price') {
@@ -201,6 +212,20 @@ const PenjualanModule = () => {
 
       return newDetail;
     });
+  };
+
+  // Fixed handler for received money input
+  const handleReceivedMoneyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    console.log('Received money input value:', value);
+    
+    // Only update if the value is empty or a valid number
+    if (value === '' || (!isNaN(Number(value)) && Number(value) >= 0)) {
+      setReceivedMoney(value);
+      console.log('Updated received money to:', value);
+    } else {
+      console.log('Invalid value rejected:', value);
+    }
   };
 
   const handleProductSelect = (product: Product) => {
@@ -250,7 +275,8 @@ const PenjualanModule = () => {
     const totalAmount = subtotal + formData.tax_amount - formData.discount_amount;
     const totalCost = saleDetails.reduce((sum, detail) => sum + detail.total_cost, 0);
     const totalMargin = saleDetails.reduce((sum, detail) => sum + detail.margin, 0);
-    const change = receivedMoney - totalAmount;
+    const receivedMoneyNum = parseFloat(receivedMoney) || 0;
+    const change = receivedMoneyNum - totalAmount;
 
     return { subtotal, totalAmount, totalCost, totalMargin, change };
   };
@@ -310,6 +336,7 @@ const PenjualanModule = () => {
         notes: ''
       });
       setSaleDetails([]);
+      setReceivedMoney('');
       
       // Show transaction confirmation dialog instead of immediate print
       setShowTransactionConfirmation(true);
@@ -472,7 +499,8 @@ const PenjualanModule = () => {
   };
 
   const { subtotal, totalAmount, totalCost, totalMargin, change } = calculateTotals();
-  const isPaymentSufficient = receivedMoney >= totalAmount;
+  const receivedMoneyNum = parseFloat(receivedMoney) || 0;
+  const isPaymentSufficient = receivedMoneyNum >= totalAmount;
 
   return (
     <div className="p-6 space-y-6">
@@ -702,8 +730,8 @@ const PenjualanModule = () => {
                     id="received_money"
                     name="received_money"
                     type="number"
-                    value={receivedMoney || ''}
-                    onChange={(e) => setReceivedMoney(parseFloat(e.target.value) || 0)}
+                    value={receivedMoney}
+                    onChange={handleReceivedMoneyChange}
                     placeholder="Masukkan nominal uang yang diberikan oleh pelanggan"
                   />
                 </div>
@@ -729,7 +757,7 @@ const PenjualanModule = () => {
                   />
                 </div>
                 
-                {receivedMoney > 0 && !isPaymentSufficient && (
+                {receivedMoneyNum > 0 && !isPaymentSufficient && (
                   <div className="flex items-center">
                     <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
                       Uang yang diterima kurang
@@ -755,7 +783,7 @@ const PenjualanModule = () => {
                 </Button>
                 <Button 
                   type="submit" 
-                  disabled={saleDetails.length === 0 || !isPaymentSufficient || receivedMoney === 0}
+                  disabled={saleDetails.length === 0 || !isPaymentSufficient || receivedMoneyNum === 0}
                 >
                   Simpan Penjualan
                 </Button>
@@ -770,7 +798,7 @@ const PenjualanModule = () => {
         open={showTransactionConfirmation}
         onOpenChange={setShowTransactionConfirmation}
         sale={lastCreatedSale}
-        receivedMoney={receivedMoney}
+        receivedMoney={receivedMoneyNum}
         onPrintReceipt={handlePrintFromConfirmation}
         onCancelTransaction={handleCancelTransactionFromConfirmation}
         isSuccess={true}
