@@ -319,16 +319,6 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
         <div className="flex-shrink-0 p-4 border-t bg-white">
           {mode === 'confirmation' && showContent ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {onPrintReceipt && (
-                <Button 
-                  onClick={onPrintReceipt}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm h-10"
-                >
-                  <Printer className="w-4 h-4 mr-2" />
-                  Cetak Struk
-                </Button>
-              )}
-              
               {onCancelTransaction && (
                 <Button 
                   onClick={onCancelTransaction}
@@ -348,6 +338,16 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
                 <X className="w-4 h-4 mr-2" />
                 Tutup
               </Button>
+
+              {onPrintReceipt && (
+                <Button 
+                  onClick={onPrintReceipt}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm h-10"
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Cetak Struk
+                </Button>
+              )}
             </div>
           ) : (
             /* Detail mode or error state - simple close button */
