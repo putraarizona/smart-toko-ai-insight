@@ -65,7 +65,7 @@ import {
 } from '@/integrations/supabase/db';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 type Purchase = Database['public']['Tables']['purchases']['Row'] & {
   purchase_details: Array<Database['public']['Tables']['purchase_details']['Row'] & {
@@ -88,6 +88,8 @@ type LocalPurchaseDetail = Omit<Database['public']['Tables']['purchase_details']
 };
 
 const PembelianModule = () => {
+  const { toast } = useToast();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -338,11 +340,7 @@ const PembelianModule = () => {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (purchaseDetails.length === 0) {
-      toast({
-        title: "Error",
-        description: "Tambahkan minimal 1 barang!",
-        variant: "destructive"
-      });
+      showErrorNotification('Tambahkan minimal 1 barang!');
       return;
     }
     try {
@@ -404,11 +402,27 @@ const PembelianModule = () => {
       });
     } catch (err) {
       console.error('Error saving purchase:', err);
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : (editMode ? 'Gagal memperbarui pembelian' : 'Gagal menambahkan pembelian'),
-        variant: "destructive"
-      });
+      
+      // Show specific error notifications
+      let errorMessage = 'Gagal menyimpan pembelian';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('Nomor pesanan sudah digunakan')) {
+          errorMessage = 'Nomor pesanan sudah digunakan. Silakan gunakan nomor yang berbeda.';
+        } else if (err.message.includes('duplicate')) {
+          errorMessage = 'Nomor pesanan sudah digunakan. Silakan gunakan nomor yang berbeda.';
+        } else if (err.message.includes('permission')) {
+          errorMessage = 'Anda tidak memiliki izin untuk melakukan operasi ini.';
+        } else if (err.message.includes('network')) {
+          errorMessage = 'Koneksi internet bermasalah. Periksa koneksi dan coba lagi.';
+        } else if (err.message.includes('validation')) {
+          errorMessage = 'Data yang dimasukkan tidak valid. Periksa kembali form anda.';
+        } else {
+          errorMessage = `Gagal menyimpan pembelian: ${err.message}`;
+        }
+      }
+      
+      showErrorNotification(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -460,11 +474,17 @@ const PembelianModule = () => {
       });
     } catch (err) {
       console.error('Error deleting purchase:', err);
-      toast({
-        title: "Error",
-        description: "Gagal menghapus pembelian",
-        variant: "destructive"
-      });
+      
+      let errorMessage = 'Gagal menghapus pembelian';
+      if (err instanceof Error) {
+        if (err.message.includes('permission')) {
+          errorMessage = 'Anda tidak memiliki izin untuk menghapus pembelian ini.';
+        } else {
+          errorMessage = `Gagal menghapus pembelian: ${err.message}`;
+        }
+      }
+      
+      showErrorNotification(errorMessage);
     } finally {
       setIsDeleting(false);
     }
