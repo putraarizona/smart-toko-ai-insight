@@ -333,9 +333,16 @@ const PenjualanModule = () => {
     }
   };
 
-  const handleView = (sale: Sale) => {
-    setSelectedSale(sale);
-    setIsViewDialogOpen(true);
+  const handleView = async (sale: Sale) => {
+    try {
+      // Get complete sale data with details
+      const completeSaleData = await getSaleById(sale.id);
+      setSelectedSale(completeSaleData);
+      setIsViewDialogOpen(true);
+    } catch (err) {
+      console.error('Error loading sale details:', err);
+      setError('Gagal memuat detail penjualan');
+    }
   };
 
   const handleDelete = async (sale: Sale) => {
@@ -692,76 +699,17 @@ const PenjualanModule = () => {
         onPrintReceipt={handlePrintFromConfirmation}
         onCancelTransaction={handleCancelTransactionFromConfirmation}
         isSuccess={true}
+        mode="confirmation"
       />
 
-      {/* View Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Detail Penjualan</DialogTitle>
-          </DialogHeader>
-          {selectedSale && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>No. Penjualan</Label>
-                  <p>{selectedSale.sale_number}</p>
-                </div>
-                <div>
-                  <Label>Tanggal</Label>
-                  <p>{new Date(selectedSale.sale_date).toLocaleDateString('id-ID')}</p>
-                </div>
-                <div>
-                  <Label>Kasir</Label>
-                  <p>{selectedSale.cashier_name}</p>
-                </div>
-                <div>
-                  <Label>Metode Pembayaran</Label>
-                  <p>{selectedSale.payment_method}</p>
-                </div>
-                <div>
-                  <Label>Status</Label>
-                  <p><Badge className={getStatusColor(selectedSale.status)}>
-                    {selectedSale.status.charAt(0).toUpperCase() + selectedSale.status.slice(1)}
-                  </Badge></p>
-                </div>
-                <div>
-                  <Label>Total</Label>
-                  <p>{formatCurrency(selectedSale.total_amount)}</p>
-                </div>
-              </div>
-              
-              <div className="mt-4">
-                <h3 className="font-medium mb-2">Detail Barang</h3>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nama Barang</TableHead>
-                      <TableHead>Kode</TableHead>
-                      <TableHead>Jumlah</TableHead>
-                      <TableHead>Harga</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Margin</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedSale.sales_details?.map((detail, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{detail.product_name}</TableCell>
-                        <TableCell>{detail.product_code}</TableCell>
-                        <TableCell>{detail.quantity}</TableCell>
-                        <TableCell>{formatCurrency(detail.unit_price)}</TableCell>
-                        <TableCell>{formatCurrency(detail.total_price)}</TableCell>
-                        <TableCell>{formatCurrency(detail.margin)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* View Sale Details Dialog - using the same TransactionConfirmationDialog */}
+      <TransactionConfirmationDialog
+        open={isViewDialogOpen}
+        onOpenChange={setIsViewDialogOpen}
+        sale={selectedSale}
+        mode="detail"
+        title="Detail Penjualan"
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
