@@ -59,6 +59,7 @@ import { getSales, createSale, updateSaleStatus, deleteSale, searchProducts as s
 import { useAuth } from './AuthProvider';
 import PrintReceipt from './PrintReceipt';
 import TransactionConfirmationDialog from './TransactionConfirmationDialog';
+import { useAudioFeedback } from '@/hooks/useAudioFeedback';
 import type { Database } from '@/integrations/supabase/types';
 
 type Sale = Database['public']['Tables']['sales']['Row'] & {
@@ -93,6 +94,7 @@ type SaleFormData = {
 
 const PenjualanModule = () => {
   const { user, profile, isOwner } = useAuth();
+  const { playSuccessSound, playErrorSound } = useAudioFeedback();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -278,6 +280,9 @@ const PenjualanModule = () => {
 
       const createdSale = await createSale(newSale, saleDetails);
       
+      // Play success sound
+      playSuccessSound();
+      
       // Get the complete sale data with details for the confirmation dialog
       const completeSaleData = await getSaleById(createdSale.id);
       setLastCreatedSale(completeSaleData);
@@ -300,6 +305,10 @@ const PenjualanModule = () => {
       setShowTransactionConfirmation(true);
     } catch (err) {
       console.error('Error saving sale:', err);
+      
+      // Play error sound
+      playErrorSound();
+      
       setError('Gagal menyimpan penjualan');
     }
   };
