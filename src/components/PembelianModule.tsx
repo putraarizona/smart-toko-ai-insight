@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -89,6 +90,15 @@ type LocalPurchaseDetail = Omit<Database['public']['Tables']['purchase_details']
 
 const PembelianModule = () => {
   const { toast } = useToast();
+  
+  // Function to show error notifications
+  const showErrorNotification = (message: string) => {
+    toast({
+      title: "Error",
+      description: message,
+      variant: "destructive"
+    });
+  };
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
