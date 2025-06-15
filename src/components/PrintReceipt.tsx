@@ -75,9 +75,10 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({ sale, onPrint }) => {
       `}</style>
       
       <div className="text-center border-b pb-2 mb-2">
-        <h2 className="font-bold text-lg">TOKO ANDA</h2>
-        <p className="text-xs">Alamat Toko Anda</p>
-        <p className="text-xs">Telp: 0123-456-789</p>
+        <h2 className="font-bold text-lg">Babykinz Store</h2>
+        <p className="text-xs">Letjen Sutoyo 101</p>
+        <p className="text-xs">Jember, Jawa Timur</p>
+        <p className="text-xs">Telp: 082229339099</p>
       </div>
 
       <div className="border-b pb-2 mb-2">
@@ -114,7 +115,6 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({ sale, onPrint }) => {
               <tr key={index}>
                 <td className="py-1">
                   <div className="font-medium">{detail.product_name}</div>
-                  <div className="text-gray-500">{detail.product_code}</div>
                 </td>
                 <td className="text-center py-1">{detail.quantity}</td>
                 <td className="text-right py-1">{formatCurrency(detail.unit_price)}</td>
