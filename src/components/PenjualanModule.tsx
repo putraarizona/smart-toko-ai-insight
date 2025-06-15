@@ -106,6 +106,7 @@ const PenjualanModule = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showPrintReceipt, setShowPrintReceipt] = useState(false);
   const [lastCreatedSale, setLastCreatedSale] = useState<Sale | null>(null);
+  const [receivedMoney, setReceivedMoney] = useState<number>(0);
 
   const [formData, setFormData] = useState<SaleFormData>({
     sale_number: `SAL-${Date.now()}`,
@@ -243,8 +244,9 @@ const PenjualanModule = () => {
     const totalAmount = subtotal + formData.tax_amount - formData.discount_amount;
     const totalCost = saleDetails.reduce((sum, detail) => sum + detail.total_cost, 0);
     const totalMargin = saleDetails.reduce((sum, detail) => sum + detail.margin, 0);
+    const change = receivedMoney - totalAmount;
 
-    return { subtotal, totalAmount, totalCost, totalMargin };
+    return { subtotal, totalAmount, totalCost, totalMargin, change };
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -255,7 +257,7 @@ const PenjualanModule = () => {
     }
 
     try {
-      const { subtotal, totalAmount, totalCost, totalMargin } = calculateTotals();
+      const { subtotal, totalAmount, totalCost, totalMargin, change } = calculateTotals();
       
       const newSale = {
         user_id: user.id,
@@ -368,7 +370,8 @@ const PenjualanModule = () => {
     }
   };
 
-  const { subtotal, totalAmount, totalCost, totalMargin } = calculateTotals();
+  const { subtotal, totalAmount, totalCost, totalMargin, change } = calculateTotals();
+  const isPaymentSufficient = receivedMoney >= totalAmount;
 
   return (
     <div className="p-6 space-y-6">
@@ -569,7 +572,7 @@ const PenjualanModule = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="tax_amount">Pajak</Label>
                   <Input
@@ -593,6 +596,18 @@ const PenjualanModule = () => {
                 </div>
                 
                 <div className="space-y-2">
+                  <Label htmlFor="received_money">Uang Diterima</Label>
+                  <Input
+                    id="received_money"
+                    name="received_money"
+                    type="number"
+                    value={receivedMoney || ''}
+                    onChange={(e) => setReceivedMoney(parseFloat(e.target.value) || 0)}
+                    placeholder="Masukkan nominal uang yang diberikan oleh pelanggan"
+                  />
+                </div>
+                
+                <div className="space-y-2">
                   <Label>Total Bayar</Label>
                   <Input
                     value={formatCurrency(Math.round(totalAmount))}
@@ -600,6 +615,26 @@ const PenjualanModule = () => {
                     className="bg-gray-50 font-bold text-lg"
                   />
                 </div>
+              </div>
+
+              {/* Kembalian dan peringatan */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Kembalian</Label>
+                  <Input
+                    value={formatCurrency(Math.round(Math.max(0, change)))}
+                    readOnly
+                    className="bg-green-50 font-bold text-lg"
+                  />
+                </div>
+                
+                {receivedMoney > 0 && !isPaymentSufficient && (
+                  <div className="flex items-center">
+                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                      Uang yang diterima kurang
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -617,7 +652,10 @@ const PenjualanModule = () => {
                 <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
                   Batal
                 </Button>
-                <Button type="submit" disabled={saleDetails.length === 0}>
+                <Button 
+                  type="submit" 
+                  disabled={saleDetails.length === 0 || !isPaymentSufficient || receivedMoney === 0}
+                >
                   Simpan Penjualan
                 </Button>
               </div>
