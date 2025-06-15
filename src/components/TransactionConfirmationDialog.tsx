@@ -95,6 +95,9 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
   // Determine if we should show success/error icon
   const showStatusIcon = mode === 'confirmation';
 
+  // Determine if we should show content (success state or detail mode)
+  const showContent = (mode === 'confirmation' && isSuccess) || mode === 'detail';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl w-[95vw] h-[90vh] p-0 flex flex-col">
@@ -118,7 +121,7 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
 
         {/* Scrollable Content */}
         <ScrollArea className="flex-1 px-6">
-          {(isSuccess || mode === 'detail') ? (
+          {showContent ? (
             <div className="space-y-4 pb-4">
               {/* Transaction Summary Card */}
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
@@ -314,7 +317,7 @@ const TransactionConfirmationDialog: React.FC<TransactionConfirmationDialogProps
 
         {/* Fixed Action Buttons */}
         <div className="flex-shrink-0 p-4 border-t bg-white">
-          {mode === 'confirmation' && (isSuccess || mode === 'detail') ? (
+          {mode === 'confirmation' && showContent ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {onPrintReceipt && (
                 <Button 
