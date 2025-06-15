@@ -324,7 +324,9 @@ const PenjualanModule = () => {
       
       if (err instanceof Error) {
         // Extract specific error messages
-        if (err.message.includes('duplicate')) {
+        if (err.message.includes('Nomor transaksi sudah digunakan')) {
+          errorMessage = 'Nomor transaksi sudah digunakan. Silakan gunakan nomor yang berbeda.';
+        } else if (err.message.includes('duplicate')) {
           errorMessage = 'Nomor penjualan sudah digunakan. Silakan gunakan nomor yang berbeda.';
         } else if (err.message.includes('stock')) {
           errorMessage = 'Stok tidak mencukupi untuk salah satu produk.';

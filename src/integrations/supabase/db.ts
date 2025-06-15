@@ -1,4 +1,3 @@
-
 import { supabase } from './client';
 import type { Database } from './types';
 
@@ -333,12 +332,37 @@ export async function getSaleById(id: number) {
   return data;
 }
 
+export async function checkSaleNumberExists(saleNumber: string, excludeId?: number) {
+  let query = supabase
+    .from('sales')
+    .select('id')
+    .eq('sale_number', saleNumber);
+
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
+
+  const { data, error } = await query.single();
+
+  if (error && error.code !== 'PGRST116') { // PGRST116 is the error code for no rows returned
+    throw error;
+  }
+
+  return !!data;
+}
+
 export async function createSale(
   sale: Database['public']['Tables']['sales']['Insert'],
   details: Array<Omit<Database['public']['Tables']['sales_details']['Insert'], 'sale_id'>>
 ) {
   try {
     console.log('Creating sale with data:', sale, details);
+    
+    // Check if sale number already exists
+    const exists = await checkSaleNumberExists(sale.sale_number);
+    if (exists) {
+      throw new Error('Nomor transaksi sudah digunakan');
+    }
     
     const { data: saleData, error: saleError } = await supabase
       .from('sales')
