@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { NumpadInput } from '@/components/ui/numpad-input';
 import { 
   ShoppingCart, 
   Plus, 
@@ -214,18 +215,46 @@ const PenjualanModule = () => {
     });
   };
 
-  // Fixed handler for received money input
-  const handleReceivedMoneyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  // Handlers for numpad inputs
+  const handleQuantityChange = (value: string) => {
+    const numericValue = parseInt(value) || 0;
+    setCurrentDetail(prev => {
+      const newDetail = {
+        ...prev,
+        quantity: numericValue
+      };
+
+      const qty = newDetail.quantity || 0;
+      const price = newDetail.unit_price || 0;
+      const cost = newDetail.unit_cost || 0;
+      newDetail.total_price = qty * price;
+      newDetail.total_cost = qty * cost;
+      newDetail.margin = newDetail.total_price - newDetail.total_cost;
+
+      return newDetail;
+    });
+  };
+
+  const handleTaxAmountChange = (value: string) => {
+    const numericValue = parseFloat(value) || 0;
+    setFormData(prev => ({
+      ...prev,
+      tax_amount: numericValue
+    }));
+  };
+
+  const handleDiscountAmountChange = (value: string) => {
+    const numericValue = parseFloat(value) || 0;
+    setFormData(prev => ({
+      ...prev,
+      discount_amount: numericValue
+    }));
+  };
+
+  const handleReceivedMoneyChange = (value: string) => {
     console.log('Received money input value:', value);
-    
-    // Only update if the value is empty or a valid number
-    if (value === '' || (!isNaN(Number(value)) && Number(value) >= 0)) {
-      setReceivedMoney(value);
-      console.log('Updated received money to:', value);
-    } else {
-      console.log('Invalid value rejected:', value);
-    }
+    setReceivedMoney(value);
+    console.log('Updated received money to:', value);
   };
 
   const handleProductSelect = (product: Product) => {
@@ -618,12 +647,12 @@ const PenjualanModule = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="quantity">Jumlah</Label>
-                    <Input
-                      id="quantity"
-                      name="quantity"
-                      type="number"
-                      value={currentDetail.quantity || ''}
-                      onChange={handleDetailChange}
+                    <NumpadInput
+                      value={String(currentDetail.quantity || '')}
+                      onChange={handleQuantityChange}
+                      placeholder="0"
+                      allowDecimal={false}
+                      maxLength={6}
                     />
                   </div>
                   
@@ -704,35 +733,35 @@ const PenjualanModule = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="tax_amount">Pajak</Label>
-                  <Input
-                    id="tax_amount"
-                    name="tax_amount"
-                    type="number"
-                    value={formData.tax_amount}
-                    onChange={handleInputChange}
+                  <NumpadInput
+                    value={String(formData.tax_amount || '')}
+                    onChange={handleTaxAmountChange}
+                    placeholder="0"
+                    allowDecimal={true}
+                    maxLength={10}
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="discount_amount">Diskon</Label>
-                  <Input
-                    id="discount_amount"
-                    name="discount_amount"
-                    type="number"
-                    value={formData.discount_amount}
-                    onChange={handleInputChange}
+                  <NumpadInput
+                    value={String(formData.discount_amount || '')}
+                    onChange={handleDiscountAmountChange}
+                    placeholder="0"
+                    allowDecimal={true}
+                    maxLength={10}
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="received_money">Uang Diterima</Label>
-                  <Input
-                    id="received_money"
-                    name="received_money"
-                    type="number"
+                  <NumpadInput
                     value={receivedMoney}
                     onChange={handleReceivedMoneyChange}
                     placeholder="Masukkan nominal uang yang diberikan oleh pelanggan"
+                    allowDecimal={true}
+                    maxLength={12}
+                    formatCurrency={false}
                   />
                 </div>
                 
