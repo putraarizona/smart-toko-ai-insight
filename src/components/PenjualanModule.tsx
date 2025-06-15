@@ -252,9 +252,7 @@ const PenjualanModule = () => {
   };
 
   const handleReceivedMoneyChange = (value: string) => {
-    console.log('Received money input value:', value);
     setReceivedMoney(value);
-    console.log('Updated received money to:', value);
   };
 
   const handleProductSelect = (product: Product) => {
@@ -841,6 +839,7 @@ const PenjualanModule = () => {
         sale={selectedSale}
         mode="detail"
         title="Detail Penjualan"
+        onPrintReceipt={() => setShowPrintReceipt(true)}
       />
 
       {/* Delete Confirmation Dialog */}

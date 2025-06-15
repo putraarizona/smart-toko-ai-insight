@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -35,7 +34,6 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({ sale, onPrint }) => {
 
   const handlePrint = () => {
     window.print();
-    onPrint();
   };
 
   React.useEffect(() => {
@@ -75,6 +73,7 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({ sale, onPrint }) => {
       `}</style>
       
       <div className="text-center border-b pb-2 mb-2">
+        <img src="/public/logo.png" alt="Logo Toko" style={{ width: 160, marginBottom: 0, display: 'block', margin: '0 auto' }} />
         <h2 className="font-bold text-lg">Babykinz Store</h2>
         <p className="text-xs">Letjen Sutoyo 101</p>
         <p className="text-xs">Jember, Jawa Timur</p>
