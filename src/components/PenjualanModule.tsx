@@ -60,6 +60,7 @@ import { useAuth } from './AuthProvider';
 import PrintReceipt from './PrintReceipt';
 import TransactionConfirmationDialog from './TransactionConfirmationDialog';
 import { useAudioFeedback } from '@/hooks/useAudioFeedback';
+import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/integrations/supabase/types';
 
 type Sale = Database['public']['Tables']['sales']['Row'] & {
@@ -95,6 +96,7 @@ type SaleFormData = {
 const PenjualanModule = () => {
   const { user, profile, isOwner } = useAuth();
   const { playSuccessSound, playErrorSound } = useAudioFeedback();
+  const { toast } = useToast();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -253,10 +255,18 @@ const PenjualanModule = () => {
     return { subtotal, totalAmount, totalCost, totalMargin, change };
   };
 
+  const showErrorNotification = (errorMessage: string) => {
+    toast({
+      variant: "destructive",
+      title: "Transaksi Gagal",
+      description: errorMessage || "Terjadi kesalahan saat menyimpan transaksi. Silakan coba lagi.",
+    });
+  };
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saleDetails.length === 0) {
-      alert('Tambahkan minimal 1 barang!');
+      showErrorNotification('Tambahkan minimal 1 barang!');
       return;
     }
 
@@ -309,7 +319,25 @@ const PenjualanModule = () => {
       // Play error sound
       playErrorSound();
       
-      setError('Gagal menyimpan penjualan');
+      // Show error notification instead of setting error state
+      let errorMessage = 'Gagal menyimpan penjualan';
+      
+      if (err instanceof Error) {
+        // Extract specific error messages
+        if (err.message.includes('duplicate')) {
+          errorMessage = 'Nomor penjualan sudah digunakan. Silakan gunakan nomor yang berbeda.';
+        } else if (err.message.includes('stock')) {
+          errorMessage = 'Stok tidak mencukupi untuk salah satu produk.';
+        } else if (err.message.includes('permission')) {
+          errorMessage = 'Anda tidak memiliki izin untuk melakukan transaksi ini.';
+        } else if (err.message.includes('network')) {
+          errorMessage = 'Koneksi internet bermasalah. Periksa koneksi dan coba lagi.';
+        } else {
+          errorMessage = `Gagal menyimpan penjualan: ${err.message}`;
+        }
+      }
+      
+      showErrorNotification(errorMessage);
     }
   };
 
@@ -336,9 +364,24 @@ const PenjualanModule = () => {
     try {
       await updateSaleStatus(sale.id, newStatus);
       await loadSales();
+      
+      toast({
+        title: "Status Berhasil Diubah",
+        description: `Status penjualan ${sale.sale_number} berhasil diubah menjadi ${newStatus}.`,
+      });
     } catch (err) {
       console.error('Error updating status:', err);
-      setError('Gagal mengubah status');
+      
+      let errorMessage = 'Gagal mengubah status';
+      if (err instanceof Error) {
+        if (err.message.includes('permission')) {
+          errorMessage = 'Anda tidak memiliki izin untuk mengubah status transaksi.';
+        } else {
+          errorMessage = `Gagal mengubah status: ${err.message}`;
+        }
+      }
+      
+      showErrorNotification(errorMessage);
     }
   };
 
@@ -350,7 +393,13 @@ const PenjualanModule = () => {
       setIsViewDialogOpen(true);
     } catch (err) {
       console.error('Error loading sale details:', err);
-      setError('Gagal memuat detail penjualan');
+      
+      let errorMessage = 'Gagal memuat detail penjualan';
+      if (err instanceof Error) {
+        errorMessage = `Gagal memuat detail: ${err.message}`;
+      }
+      
+      showErrorNotification(errorMessage);
     }
   };
 
@@ -367,9 +416,24 @@ const PenjualanModule = () => {
       await deleteSale(selectedSale.id);
       await loadSales();
       setIsDeleteDialogOpen(false);
+      
+      toast({
+        title: "Transaksi Berhasil Dihapus",
+        description: `Transaksi ${selectedSale.sale_number} berhasil dihapus.`,
+      });
     } catch (err) {
       console.error('Error deleting sale:', err);
-      setError('Gagal menghapus penjualan');
+      
+      let errorMessage = 'Gagal menghapus penjualan';
+      if (err instanceof Error) {
+        if (err.message.includes('permission')) {
+          errorMessage = 'Anda tidak memiliki izin untuk menghapus transaksi ini.';
+        } else {
+          errorMessage = `Gagal menghapus transaksi: ${err.message}`;
+        }
+      }
+      
+      showErrorNotification(errorMessage);
     } finally {
       setIsDeleting(false);
     }
