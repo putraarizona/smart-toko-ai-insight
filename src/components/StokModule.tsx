@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Search, Package, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
 import { getProducts, createProduct, updateProduct, deleteProduct, getProductCategories } from '@/integrations/supabase/db';
+import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
 type Product = Database['public']['Tables']['products']['Row'];
@@ -42,6 +43,29 @@ const StokModule = () => {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
+    
+    // Set up real-time subscription for products table
+    const channel = supabase
+      .channel('products-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'products'
+        },
+        (payload) => {
+          console.log('Real-time update received:', payload);
+          // Refresh products when any change occurs
+          fetchProducts();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchProducts = async () => {
