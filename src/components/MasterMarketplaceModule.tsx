@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -342,7 +341,10 @@ const MasterMarketplaceModule = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {marketplaceSuppliers.map((item) => (
+              {marketplaceSuppliers
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>{item.name}</TableCell>
                   <TableCell>
@@ -443,7 +445,15 @@ const MasterMarketplaceModule = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {supplierAccounts.map((account) => (
+              {supplierAccounts
+                .slice()
+                .sort((a, b) => {
+                  // Urutkan dulu berdasarkan nama marketplace_supplier, lalu account_name
+                  const cmp = a.marketplace_supplier.name.localeCompare(b.marketplace_supplier.name);
+                  if (cmp !== 0) return cmp;
+                  return a.account_name.localeCompare(b.account_name);
+                })
+                .map((account) => (
                 <TableRow key={account.id}>
                   <TableCell>{account.marketplace_supplier.name}</TableCell>
                   <TableCell>{account.account_name}</TableCell>
